@@ -1,100 +1,603 @@
-# Image–Text Extraction with VLM and OCR→LM
+# Comparing Vision-Language Models and OCR → Language-Model Pipelines
 
-**Publication-ready research implementation and reproducible evaluation for OCRBench v2 English key information extraction.**
+**A University of Tübingen student project · OCRBench v2 English Key Information Extraction (KIE)**
 
-Compare direct vision-language models against OCR-based language-model pipelines with **400 matched English KIE items**, the unmodified benchmark questions and official item-level scoring. The project ran on bwForCluster **Helix**, using pinned model revisions and greedy decoding. No model training or custom OCRBench scoring was performed.
+We wanted to find out whether it is better to give a document image directly to a vision-language model (VLM), or to first extract the text using OCR and then ask a language model (LM) to answer the same question. We built several versions of both approaches, ran them on the same documents, and compared extraction accuracy, processing time and compute requirements.
 
-> **Reproduce the paper without a GPU.** This repository includes a small lossless derivative of the **seven final officially scored runs**. The exact paper accuracy tables, stratified paired bootstrap intervals, and figures are rebuilt from those scores on an ordinary CPU. Neither OCRBench images, questions, ground-truth answers, nor pretrained model weights are redistributed.
+This repository contains **the code needed to run our experiments on bwForCluster Helix**, use the official OCRBench v2 evaluator, and analyze a **new, matched six-model benchmark**. The previous exploratory results are **not** presented as results of this rerun. We will add the final measured values only after all six new jobs have finished.
 
-## Results at a glance
+**Start here:** this README contains the full workflow, from installation to Slurm submission, scoring, statistical analysis, and troubleshooting. The short README files inside individual folders only help with navigation.
 
-| Pipeline / publication label | Official mean KIE score |
+## Contents
+
+1. [What we are testing](#1-what-we-are-testing)
+2. [What is in this repository?](#2-what-is-in-this-repository)
+3. [Dataset and scoring](#3-dataset-and-scoring)
+4. [Models and experiment settings](#4-models-and-experiment-settings)
+5. [Set up the project on Helix](#5-set-up-the-project-on-helix)
+6. [Check GPU allocation and dependencies](#6-check-gpu-allocation-and-dependencies)
+7. [Run all six models](#7-run-all-six-models)
+8. [Monitor, recover and score](#8-monitor-recover-and-score)
+9. [How we measure accuracy and efficiency](#9-how-we-measure-accuracy-and-efficiency)
+10. [Paired bootstrap: statistical comparisons](#10-paired-bootstrap-statistical-comparisons)
+11. [Finalize the fresh benchmark](#11-finalize-the-fresh-benchmark)
+12. [Troubleshooting](#12-troubleshooting)
+13. [Reproducibility, limitations and references](#13-reproducibility-limitations-and-references)
+
+## 1. What we are testing
+
+We compare the following **six** setups. They all answer the **original, unchanged** OCRBench question for each document.
+
+| ID | What the model receives | Model |
+| --- | --- | --- |
+| \`qwen35_vlm\` | Original document image + question | Qwen3.5-9B |
+| \`minicpm_vlm\` | Original document image + question | MiniCPM-V-4.6 |
+| \`qwen35_ocr\` | Flat PaddleOCR text + question | Qwen3.5-9B |
+| \`qwen25_ocr\` | Flat PaddleOCR text + question | Qwen2.5-14B-Instruct-1M |
+| \`qwen35_laocr\` | PaddleOCR recognized text **with bounding-box coordinates** + question | Qwen3.5-9B |
+| \`qwen35_ppstructure\` | PP-StructureV3 Markdown **with OCR text recovery** + question | Qwen3.5-9B |
+
+Our **main comparison** is direct Qwen3.5 versus flat PaddleOCR → the *same* Qwen3.5 checkpoint. This comes closest to comparing the effect of the input pipeline while keeping the model fixed. Comparisons with MiniCPM and Qwen2.5 also change the underlying model.
+
+For the OCR pipelines, the LM never receives the original image. Flat OCR preserves recognized lines but does not explicitly retain positions; coordinate-aware OCR serializes each line, its pixel bounding box and confidence into JSON; PP-StructureV3 produces document-structure Markdown and recovers missing OCR text. The PP version used in this *new rerun* is the **recovered-Markdown v2** implementation; we do not rerun the historical uncorrected v1 in the main six-model batch.
+
+We did **not** train or fine-tune models. We use pretrained checkpoints and document their exact model revisions in \`src/ulm_extractor/config.py\`.
+
+## 2. What is in this repository?
+
+\`\`\`text
+Image-Text-Extractor-with-VLM-and-OCRLM/
+├── README.md                      ← Full guide: you are here
+├── CITATION.cff                   ← Project citation metadata
+├── .github/workflows/tests.yml   ← Offline tests on every GitHub push
+├── pyproject.toml                 ← Python package, dependencies and CLI
+├── .python-version               ← Python version
+│
+├── model.yml                     ← All six models (use for the full rerun)
+├── model-baselines.yml           ← Only the original four models
+├── model-laocr.yml               ← Only coordinate-aware OCR → Qwen
+├── model-ppstructure.yml         ← Only recovered PP Markdown → Qwen
+│
+├── src/ulm_extractor/            ← Main Python source code
+├── scripts/                      ← Bootstrap, final analysis, diagnostic scripts
+├── slurm/                        ← GPU worker, CPU collector, GPU smoke tests
+├── requirements/                 ← Python/CUDA installation requirements
+├── tests/                        ← Offline regression and integrity tests
+└── analysis/                     ← Brief analysis/navigation notes
+\`\`\`
+
+**Important files and their jobs:**
+
+| File | Purpose |
+| --- | --- |
+| \`src/ulm_extractor/config.py\` | Checks YAML models, supported pipelines, and frozen checkpoint revisions |
+| \`dataset.py\` | Selects and validates 400 English KIE questions and images |
+| \`cli.py\` | Provides \`extractor benchmark\` and \`extractor resume\` |
+| \`scheduler.py\` | Submits OCR jobs, model jobs and CPU scoring with Slurm dependencies |
+| \`worker.py\` | Runs inference and saves one prediction per question |
+| \`adapters.py\` | Loads the model, formats its input, generates and decodes answers |
+| \`ocr.py\`, \`layout.py\` | Flat OCR and coordinate-preserving JSON OCR |
+| \`ppstructure.py\`, \`markdown_recovery.py\` | Document parser and text-recovery procedure |
+| \`aggregate.py\` | Calls the official evaluator and builds per-run accuracy/efficiency summaries |
+| \`resume.py\` | Safely retries failed work without changing batch/run IDs |
+| \`storage.py\` | Atomic JSON writes and document identity hashing |
+| \`scripts/bootstrap_kie.py\` | Document-paired, stratified bootstrap analysis |
+| \`scripts/finalize_benchmark.py\` | **After all new runs are scored:** hardware/score checks, statistics, tables and figures |
+| \`slurm/worker.sbatch\` | Routes Torch and Paddle jobs to separate environments and validates GPU VRAM |
+| \`slurm/collector.sbatch\` | CPU scoring and summary, without rerunning models |
+| \`slurm/check_environment.sbatch\` | Single-job tests for GPU, OCR and model inference |
+
+The package uses \`src/\` layout, so the \`src/ulm_extractor/*.py\` files are **not** scripts you usually run by hand. Use the \`extractor\` CLI and the \`scripts/\` entry points.
+
+**Generated directories do not belong in Git:**
+
+- \`data/\`: optional local dataset files; the official benchmark must be obtained separately.
+- \`runs/\`: new run UUIDs, predictions, OCR caches, Slurm logs, scoring results and final statistical analysis.
+- \`.venv*\`: separate Python environments.
+
+These paths are ignored by \`.gitignore\`. Do not delete \`runs/\` to fix a failed job: our resume procedure reuses its partial results.
+
+## 3. Dataset and scoring
+
+We use **OCRBench v2**, restricted to the task \`key information extraction en\`.
+
+| Source subset | Questions |
 | --- | ---: |
-| **Qwen3.5-9B direct VLM** · `qwen35_vlm` | **0.870673** |
-| PaddleOCR flat text → Qwen3.5-9B · `qwen35_ocr` | 0.767842 |
-| Coordinate-aware PaddleOCR → Qwen3.5-9B · `qwen35_laocr` | 0.742936 |
-| PP-StructureV3 **recovered** Markdown → Qwen3.5-9B · `qwen35_ppstructure_v2` | 0.722947 |
-| PaddleOCR flat text → Qwen2.5-14B · `qwen25_ocr` | 0.655764 |
-| PP-StructureV3 **original** Markdown → Qwen3.5-9B · `qwen35_ppstructure_v1` | 0.590125 |
-| MiniCPM-V-4.6 direct VLM · `minicpm_vlm` | 0.559314 |
+| FUNSD | 48 |
+| POIE | 177 |
+| Receipt | 25 |
+| SROIE | 150 |
+| **Total** | **400** |
 
-The most controlled architectural comparison—**direct Qwen3.5 versus flat PaddleOCR→the same Qwen3.5 model**—shows a 0.102831 mean score advantage (10.283 percentage points). Its previously computed 95% paired bootstrap CI is approximately **8.36–12.21 points**. Because the bootstrap resamples the *same observed documents*, it does not demonstrate transfer to an unrelated document population.
+The evaluation input comes from \`OCRBench_v2.json\`; the images are in \`OCRBench_v2/EN_part/\`. The loader checks the exact task type, images, identities and expected count, and writes a **dataset manifest SHA256** in each batch. All six new experiments should have *the same manifest hash* because we submit them in a single batch.
 
-The original PP Markdown v1 and recovered Markdown v2 results are **separate scored runs**, despite the inference code historically using one experiment ID, `qwen35_ppstructure`. Their publication labels and cached formats distinguish them unambiguously.
+**Ground truth stays out of inference.** The model receives the OCRBench question and either the image or a text representation. The official answers are available only to the scoring procedure.
 
-See [detailed findings](docs/RESULTS.md), [evaluation methodology](docs/METHODOLOGY.md) and the [immutable seven-run registry](analysis/experiments.csv).
+We use the upstream evaluator \`MultimodalOCR/OCRBench_v2/eval_scripts/eval.py\`, unmodified. Its KIE item-level scores appear as \`score\` in \`predictions_scored.json\`. Our collector reports **the arithmetic mean of the 400 official KIE item scores**, plus the mean separately within FUNSD, POIE, Receipt and SROIE. This is not a new token-level micro-F1 we compute ourselves.
 
-## Reproduce all publication outputs (CPU only)
+We pin the reference evaluator repository to commit \`4e363b3f499811b43d792ef0bb33932ef05eca27\`. Record the actual evaluator commit if you intentionally use a different revision.
 
-**Python 3.12** is required. These are working repository commands, not illustrative placeholders.
+## 4. Models and experiment settings
 
-```bash
+\`model.yml\` specifies all six experiments. We use:
+
+| Parameter | Setting |
+| --- | --- |
+| Prompt | Original benchmark-native question; no modified instructions |
+| Batch size | 1 image/question at a time |
+| \`max_new_tokens\` | 384 |
+| \`do_sample\` | \`false\` (greedy decoding) |
+| Model checkpoints | Pinned immutable 40-character revision IDs |
+| New benchmark scope | All 400 English KIE items × all six models |
+| Model run strategy | One complete inference run per architecture |
+
+The model loader and chat processor live in \`adapters.py\`. Token-limit hits are recorded because truncation can affect extraction scores. We do not repeatedly generate new answers with sampling to estimate accuracy uncertainty; the paired bootstrap later operates on the saved **document scores**.
+
+The two flat OCR → LM models share one cached OCR extraction, so OCR is not needlessly recomputed. Coordinate JSON and PP Markdown have independent caches. The recovered PP pipeline also runs English PaddleOCR over the image, can recognize PP image crops, and appends OCR lines missing from the base Markdown without inventing table cells. As a result, it is a more expensive *complete pipeline*, not a clean layout-only ablation.
+
+## 5. Set up the project on Helix
+
+The commands in Sections 5–8 are for the **Helix login node**, except where we explicitly use \`sbatch\`. Always run GPU workloads through Slurm, **not** directly on a login node.
+
+### Step 5.1 — Clone the new repository
+
+\`\`\`bash
+cd ~
 git clone https://github.com/econoberries/Image-Text-Extractor-with-VLM-and-OCRLM.git
-cd Image-Text-Extractor-with-VLM-and-OCRLM
+cd ~/Image-Text-Extractor-with-VLM-and-OCRLM
+\`\`\`
 
-python3.12 -m venv .venv-analysis
+If the repository is already cloned:
+
+\`\`\`bash
+cd ~/Image-Text-Extractor-with-VLM-and-OCRLM
+git pull --ff-only origin main
+\`\`\`
+
+Check which code is being used and save its commit SHA in your research notes:
+
+\`\`\`bash
+git rev-parse HEAD
+\`\`\`
+
+### Step 5.2 — Create the separate Python environments
+
+We use Python **3.12**, with **four isolated environments** to avoid known CUDA library conflicts between PyTorch and PaddlePaddle:
+
+| Environment | Used for |
+| --- | --- |
+| \`.venv\` | CLI, Qwen/MiniCPM inference and official scoring |
+| \`.venv-ocr\` | Flat PaddleOCR |
+| \`.venv-la-ocr\` | Coordinate-aware PaddleOCR |
+| \`.venv-ppstructure\` | PP-StructureV3 and OCR text recovery |
+
+**Install Torch/Transformers:**
+
+\`\`\`bash
+test -x .venv/bin/python || /usr/bin/python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements/helix-pytorch-cu130.txt
+.venv/bin/python -m pip install -e '.[vlm]'
+.venv/bin/python -m pip install -r requirements/ocrbench-v2-kie-eval.txt
+\`\`\`
+
+**Install flat PaddleOCR separately:**
+
+\`\`\`bash
+test -x .venv-ocr/bin/python || /usr/bin/python3.12 -m venv .venv-ocr
+.venv-ocr/bin/python -m pip install -e '.[ocr]'
+.venv-ocr/bin/python -m pip install -r requirements/helix-paddle-cu130.txt
+\`\`\`
+
+**Install coordinate OCR separately:**
+
+\`\`\`bash
+test -x .venv-la-ocr/bin/python || /usr/bin/python3.12 -m venv .venv-la-ocr
+.venv-la-ocr/bin/python -m pip install -e '.[ocr]'
+.venv-la-ocr/bin/python -m pip install -r requirements/helix-paddle-cu130.txt
+\`\`\`
+
+**Install PP-StructureV3 separately:**
+
+\`\`\`bash
+test -x .venv-ppstructure/bin/python || /usr/bin/python3.12 -m venv .venv-ppstructure
+.venv-ppstructure/bin/python -m pip install -e '.[ppstructure]'
+.venv-ppstructure/bin/python -m pip install -r requirements/helix-paddle-cu130.txt
+\`\`\`
+
+The Paddle GPU wheel is installed *last* within each Paddle environment. **Never install \`paddlepaddle-gpu\` into \`.venv\`.** We install CPU statistical-analysis dependencies (NumPy and matplotlib) into a separate \`.venv-analysis\` later or, for convenience, into the existing \`.venv\` after inference has finished.
+
+### Step 5.3 — Get the OCRBench dataset and evaluator
+
+We do not redistribute the official images or annotations. Download or locate OCRBench v2 yourself. One existing project path on Helix was:
+
+\`\`\`bash
+export EN_PART="$HOME/ULM-VLM-OCR-IE/data/OCRBench_v2/EN_part"
+test -d "$EN_PART" && echo "English images found."
+test -f "$(dirname "$EN_PART")/OCRBench_v2.json" && echo "Annotations found."
+\`\`\`
+
+If your data are elsewhere, change \`EN_PART\`. The path **must point to the \`EN_part\` directory**, not the repository root.
+
+Obtain the upstream evaluator:
+
+\`\`\`bash
+test -d "$HOME/MultimodalOCR/.git" || \
+  git clone https://github.com/Yuliang-Liu/MultimodalOCR.git "$HOME/MultimodalOCR"
+
+git -C "$HOME/MultimodalOCR" checkout 4e363b3f499811b43d792ef0bb33932ef05eca27
+test -f "$HOME/MultimodalOCR/OCRBench_v2/eval_scripts/eval.py"
+\`\`\`
+
+If a different evaluator checkout already exists, check for any uncommitted work **before** checking out the reference commit. Do not replace the official evaluation code.
+
+## 6. Check GPU allocation and dependencies
+
+### Why we insist on the same A100 variant
+
+During our original exploration, some completed models landed on **A100 40 GB** and others on **A100 80 GB**. That makes processing-time comparisons harder to interpret fairly. For this fresh six-model benchmark we request **one A100 with at least 70 GB GPU memory for every GPU job**—the model jobs *and* all three OCR preprocessing jobs.
+
+Helix's A100 nodes have 40 GB and 80 GB configurations. The Slurm request
+
+\`\`\`bash
+--gres="gpu:A100:1,gpumem_per_gpu:70GB"
+\`\`\`
+
+restricts allocation to the **A100 80 GB class**. The pipeline then checks the actual GPU **name and memory** at runtime and fails rather than silently switching to a 40 GB device. Helix documents \`gpumem_per_gpu\` as a GPU-memory selection filter. This is separate from \`--mem=64G\`, which reserves **system RAM**, not VRAM.
+
+We still cannot make identical A100 nodes guarantee identical runtime behavior (concurrent load, caches and driver differences can matter), but standardizing the GPU variant removes an important source of confounding.
+
+### Step 6.1 — Check dependencies, with no GPU needed
+
+\`\`\`bash
+.venv/bin/python -m pip check
+.venv-ocr/bin/python -m pip check
+.venv-la-ocr/bin/python -m pip check
+.venv-ppstructure/bin/python -m pip check
+
+.venv/bin/python scripts/check_dependencies.py --stage all
+.venv/bin/python -m unittest discover -s tests -v
+\`\`\`
+
+On Helix login nodes, \`libcuda.so.1\` may be unavailable. A deferred Paddle GPU import in the dependency checker **does not establish a GPU failure**; verify it on an allocated GPU.
+
+### Step 6.2 — Preview the 80 GB-class Slurm request
+
+\`\`\`bash
+export GPU_GRES="gpu:A100:1,gpumem_per_gpu:70GB"
+export GPU_EXPECT=A100
+export GPU_MEMORY_MIB=71680
+
+sinfo -N -o '%N %G' | grep A100
+sbatch --test-only --partition=gpu-single --gres="$GPU_GRES" \
+  slurm/check_environment.sbatch torch
+\`\`\`
+
+The \`--test-only\` command checks schedulability without launching a job. If Helix rejects the combined typed-GPU/memory GRES syntax, inspect the current cluster configuration or contact Helix support **before launching a full benchmark**; don't simply remove the VRAM restriction.
+
+### Step 6.3 — Run the four environment GPU checks
+
+\`\`\`bash
+sbatch --gres="$GPU_GRES" \
+  --export="ALL,EXTRACTOR_EXPECT_GPU=A100,EXTRACTOR_MIN_GPU_MEMORY_MIB=$GPU_MEMORY_MIB" \
+  slurm/check_environment.sbatch torch
+
+sbatch --gres="$GPU_GRES" \
+  --export="ALL,EXTRACTOR_EXPECT_GPU=A100,EXTRACTOR_MIN_GPU_MEMORY_MIB=$GPU_MEMORY_MIB" \
+  slurm/check_environment.sbatch paddle
+
+sbatch --gres="$GPU_GRES" \
+  --export="ALL,EXTRACTOR_EXPECT_GPU=A100,EXTRACTOR_MIN_GPU_MEMORY_MIB=$GPU_MEMORY_MIB" \
+  slurm/check_environment.sbatch la-paddle
+
+sbatch --gres="$GPU_GRES" \
+  --export="ALL,EXTRACTOR_EXPECT_GPU=A100,EXTRACTOR_MIN_GPU_MEMORY_MIB=$GPU_MEMORY_MIB" \
+  slurm/check_environment.sbatch pp-paddle
+\`\`\`
+
+Look in \`gpu-check-<JOB_ID>.out\` for **GPU memory check passed**, and for **PyTorch CUDA: PASSED** or **PaddlePaddle CUDA: PASSED**. The logs should show an actual \`A100-SXM4-80GB\` device.
+
+### Step 6.4 — Try a single example document
+
+\`\`\`bash
+IMAGE="$(find "$EN_PART" -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \) -print -quit)"
+test -n "$IMAGE"
+
+sbatch --gres="$GPU_GRES" --mem=64G --time=00:45:00 \
+  --export="ALL,EXTRACTOR_EXPECT_GPU=A100,EXTRACTOR_MIN_GPU_MEMORY_MIB=$GPU_MEMORY_MIB" \
+  slurm/check_environment.sbatch ocr "$IMAGE"
+
+sbatch --gres="$GPU_GRES" --mem=64G --time=00:45:00 \
+  --export="ALL,EXTRACTOR_EXPECT_GPU=A100,EXTRACTOR_MIN_GPU_MEMORY_MIB=$GPU_MEMORY_MIB" \
+  slurm/check_environment.sbatch la-ocr "$IMAGE"
+
+sbatch --gres="$GPU_GRES" --mem=64G --time=00:45:00 \
+  --export="ALL,EXTRACTOR_EXPECT_GPU=A100,EXTRACTOR_MIN_GPU_MEMORY_MIB=$GPU_MEMORY_MIB" \
+  slurm/check_environment.sbatch ppstructure "$IMAGE"
+
+sbatch --gres="$GPU_GRES" --mem=64G --time=00:45:00 \
+  --export="ALL,EXTRACTOR_EXPECT_GPU=A100,EXTRACTOR_MIN_GPU_MEMORY_MIB=$GPU_MEMORY_MIB" \
+  slurm/check_environment.sbatch model "$EN_PART" qwen35_vlm
+\`\`\`
+
+These are **smoke tests**, not full evaluations; the model smoke test uses a reduced token budget. They do not produce publication benchmark scores.
+
+## 7. Run all six models
+
+### Step 7.1 — Check the complete Slurm submission first
+
+Run this from the **new repository root** after the smoke tests pass:
+
+\`\`\`bash
+.venv/bin/extractor benchmark \
+  --input "$EN_PART" \
+  --models model.yml \
+  --partition gpu-single \
+  --collector-partition cpu-single \
+  --gres "$GPU_GRES" \
+  --gpu-family A100 \
+  --min-gpu-memory-gib 70 \
+  --cpus 4 --mem 64G --time 06:00:00 \
+  --dry-run
+\`\`\`
+
+\`--dry-run\` validates the dataset and six model settings, prints the planned Slurm jobs and dependencies, but **does not submit jobs or write results**.
+
+### Step 7.2 — Submit the real benchmark
+
+When the dry-run and GPU smoke tests pass, run the **same command without \`--dry-run\`**:
+
+\`\`\`bash
+.venv/bin/extractor benchmark \
+  --input "$EN_PART" \
+  --models model.yml \
+  --partition gpu-single \
+  --collector-partition cpu-single \
+  --gres "$GPU_GRES" \
+  --gpu-family A100 \
+  --min-gpu-memory-gib 70 \
+  --cpus 4 --mem 64G --time 06:00:00
+\`\`\`
+
+**This command submits real jobs and consumes cluster resources. Run it only once for the intended fresh batch.** The time limit can be changed if permitted by the partition and needed after checking earlier runtimes.
+
+One complete six-model batch schedules:
+
+1. Flat PaddleOCR worker (shared by two LM models).
+2. Coordinate-aware PaddleOCR worker.
+3. PP-StructureV3 Markdown + recovery worker.
+4. Six independent language-model workers, each depending on its matching OCR worker where applicable.
+5. One CPU-only collector that evaluates all completed predictions and writes the batch summary.
+
+That is **10 Slurm jobs**. Dependencies are \`afterany\` so even failed jobs can be diagnosed; a submitted LM may still fail if its OCR dependency did not produce a complete cache.
+
+The scheduler prints a **new batch UUID**. Save it:
+
+\`\`\`bash
+BATCH="$PWD/runs/batches/<NEW_BATCH_UUID>/batch.json"
+\`\`\`
+
+Replace \`<NEW_BATCH_UUID>\` with the actual identifier. Do not copy UUIDs from the older research repository.
+
+## 8. Monitor, recover and score
+
+### Where outputs are stored
+
+\`\`\`text
+runs/
+├── batches/<batch-id>/
+│   ├── batch.json                ← Exact experiment settings, GPU request and hashes
+│   ├── documents.json            ← Fixed 400 question manifest
+│   ├── jobs.json                 ← Initial Slurm job IDs
+│   ├── logs/                     ← Job logs
+│   ├── ocr/
+│   │   ├── paddleocr/            ← Flat recognized text + measured OCR time
+│   │   ├── paddleocr_layout/     ← Coordinate JSON + measured OCR time
+│   │   └── ppstructurev3/        ← Recovered Markdown, raw parser audit and timing
+│   └── benchmark_summary.csv     ← Authoritative six-model summary
+├── <run-uuid>/
+│   ├── run.json                  ← submitted / running / failed / scored
+│   ├── metadata.json             ← GPU name, total VRAM, model version/load time
+│   ├── predictions.json          ← 400 predictions + timing + errors
+│   ├── predictions_scored.json   ← Official per-item KIE scores
+│   └── metrics.json              ← Per-run accuracy + efficiency metrics
+├── analysis/<batch-id>/          ← Created by finalize_benchmark.py (after scoring)
+└── benchmark_summary.csv         ← Convenience copy from most recent collector
+\`\`\`
+
+### Step 8.1 — Watch Slurm
+
+\`\`\`bash
+squeue -u "$USER"
+find runs/batches -name benchmark_summary.csv -print
+cat "runs/batches/<NEW_BATCH_UUID>/benchmark_summary.csv"
+\`\`\`
+
+For an individual job:
+
+\`\`\`bash
+sacct -j <SLURM_JOB_ID> --format=JobID,State,ExitCode,Elapsed
+cat "runs/batches/<NEW_BATCH_UUID>/logs/<JOB_LOG_FILENAME>.out"
+\`\`\`
+
+Check that each row in the **batch-specific** summary has \`status=scored\` and \`completed_documents=400\`. The top-level \`runs/benchmark_summary.csv\` can be replaced by subsequent batches, so it is **not** the source of truth.
+
+### Step 8.2 — Recover a failed or interrupted batch
+
+First verify that no old job for this batch is still pending or running:
+
+\`\`\`bash
+squeue -u "$USER"
+\`\`\`
+
+Then preview a resume:
+
+\`\`\`bash
+.venv/bin/extractor resume --batch "$BATCH" --dry-run
+\`\`\`
+
+After confirming the plan, submit the actual recovery:
+
+\`\`\`bash
+.venv/bin/extractor resume --batch "$BATCH"
+\`\`\`
+
+This keeps the **same original batch/run IDs**, resumes failed predictions, and preserves the batch's recorded GPU GRES and minimum VRAM requirement. Never start a brand-new \`benchmark\` to fix just one incomplete run. The \`--ocr-only\` option is available for deliberately excluding all direct VLM reruns.
+
+### Step 8.3 — If inference succeeded but scoring failed
+
+The official scorer runs in a CPU collector. You can rescore **without rerunning the GPU models**:
+
+\`\`\`bash
+sbatch --partition=cpu-single --cpus-per-task=2 --mem=4G \
+  --time=00:30:00 --job-name=ulm-rescore \
+  slurm/collector.sbatch collect --batch "$BATCH"
+\`\`\`
+
+Inspect each \`scoring.log\` if the evaluator raises an exception. Do not change the OCRBench evaluator to inflate or "fix" model scores.
+
+## 9. How we measure accuracy and efficiency
+
+The scoring scripts use saved model outputs from \`predictions.json\` and call the **official** \`eval.py\` to produce \`predictions_scored.json\`. The collector averages the resulting item-level scores.
+
+| Reported metric | What it means | Important qualification |
+| --- | --- | --- |
+| **Official mean KIE score** | Mean official per-item score across 400 items | Not independently reconstructed token micro-F1 |
+| **FUNSD/POIE/Receipt/SROIE mean** | Mean within each source subset | Receipt has only 25 items |
+| **Mean/median/p95 processing seconds** | Distribution of measured per-item processing time | OCR + LM components were timed in different jobs |
+| **Mean OCR seconds** | Paddle parsing/recognition time | Shared OCR cache can serve two LM runs |
+| **Mean LM seconds** | Processing, token generation and decoding | Excludes initial model loading and result-file write |
+| **Model load seconds** | Initialization of each language model | Includes filesystem/model-cache effects |
+| **Output tokens / token-limit hits** | Generated text length and truncation frequency | All models have a 384-token maximum |
+| **Peak Torch allocated GiB** | Maximum allocated GPU memory during LM inference | **Does not measure separate Paddle GPU memory** |
+| **GPU name and available VRAM** | Actual physical accelerator for LM/OCR jobs | Checked separately for preprocessing and inference |
+
+\`inference_seconds\` for an OCR pipeline is \`ocr_seconds + lm_seconds\`: an **estimated total component processing time**, not end-to-end elapsed wall time including Slurm scheduling, repeated cold starts and I/O. We should not call these controlled complete-system wall-clock measurements.
+
+For the fresh rerun we standardize on A100 80 GB to improve comparability, but different model checkpoints and OCR architectures still use resources differently. The comparisons remain descriptive: we do not estimate energy consumption, and available GPU VRAM is not the same as peak GPU memory used.
+
+## 10. Paired bootstrap: statistical comparisons
+
+We already know the observed score on **these exact 400 documents** once inference and scoring finish. What we want to learn is how stable a model's apparent advantage is when we vary which *observed* benchmark documents get sampled.
+
+The bootstrap does **not** rerun the neural networks.
+
+1. We start with the 400 final item scores from each model, aligned by **the same document ID, image path and question**.
+2. Within each dataset subset we sample documents **with replacement**, preserving the original counts 48 FUNSD / 177 POIE / 25 Receipt / 150 SROIE.
+3. Every model uses the **same resampled document indices** (paired bootstrap).
+4. We calculate each model's mean score and all pairwise differences for that resample.
+5. We repeat this **10,000 times** using fixed seeds, then form percentile **95% confidence intervals**.
+
+For models A and B, the paired comparison estimates:
+
+\`\`\`text
+mean_difference(A,B)
+    = mean over i=1..400 of [official_score(A,i) - official_score(B,i)]
+\`\`\`
+
+We report both the unadjusted interval and a conservative **Bonferroni-adjusted familywise interval** across all pairwise comparisons within a given model panel and dataset scope.
+
+We use two panels:
+
+- **Primary:** original four architectures, six model pairs, seed 2026.
+- **Expanded:** all six architectures, 15 model pairs, seed 2027.
+
+The original PP Markdown v1 is **not** part of this rerun; there is no v1-versus-v2 statistical comparison in the new six-model batch.
+
+A bootstrap resample is **not a new document**, and 10,000 resamples are not 10,000 independent observations. The intervals quantify document-resampling uncertainty conditional on OCRBench's benchmark composition. They **do not establish** out-of-domain generalization or GPU/nondeterministic decoding variance.
+
+The reusable implementation lives in \`scripts/bootstrap_kie.py\`; the single-batch finalizer below calls it automatically.
+
+## 11. Finalize the fresh benchmark
+
+**Only do this once all six jobs are officially scored and all the OCR indexes are complete.**
+
+### Step 11.1 — Install CPU plotting dependencies
+
+For example, create a lightweight CPU-analysis environment in the same checkout:
+
+\`\`\`bash
+test -x .venv-analysis/bin/python || /usr/bin/python3.12 -m venv .venv-analysis
 .venv-analysis/bin/python -m pip install -r requirements/analysis-lock.txt
 .venv-analysis/bin/python -m pip install -e .
+\`\`\`
 
-# Validates all 400 matched items and all seven official model means:
-.venv-analysis/bin/python scripts/validate_final_results.py
+The CPU-only analysis needs no PyTorch, PaddlePaddle or GPU allocation.
 
-# Generates three bootstrap panels, six CSV result tables, figures and provenance:
-.venv-analysis/bin/python scripts/build_final_results.py --draws 10000 --seed 2026
-```
+### Step 11.2 — Validate hardware and generate final results
 
-Outputs are written to `results/final/` (intentionally Git-ignored to avoid accidentally committing stale generated results). Their generator, inputs and expected data checks are version-controlled. The [GitHub Actions test workflow](.github/workflows/tests.yml) regenerates and uploads the complete reproduction artifact on every push.
+\`\`\`bash
+.venv-analysis/bin/python scripts/finalize_benchmark.py \
+  --batch "$BATCH" \
+  --n-bootstrap 10000 \
+  --seed 2026
+\`\`\`
 
-If you also have the separate historical `runs(3).zip` archive, validate the **raw** predictions, hashes, and cache formats—not just the republished scores:
+The finalizer checks:
 
-```bash
-.venv-analysis/bin/python scripts/validate_final_results.py --archive "runs(3).zip"
-```
+- Exactly the **six expected models**, scored on 400 matched records each.
+- Dataset manifest agreement and original official mean-score agreement.
+- Each LM worker used one **A100 80 GB** GPU with at least 70 GiB available.
+- All **three OCR preprocessing caches** were also produced on the A100 80 GB class.
+- All model runs were scored successfully.
+- The output folder does not already contain an analysis that could be overwritten.
 
-The scored-run archive is **not** published with this repository pending an independent redistribution review. The public exact-score derivative *is* sufficient to reproduce the statistical calculations, but without that archive outsiders cannot independently inspect or verify raw model generations. Full reproducibility instructions and interpretation boundaries are in [docs/REPRODUCIBILITY.md](docs/REPRODUCIBILITY.md).
+**Outputs** go to \`runs/analysis/<NEW_BATCH_UUID>/\`:
 
-## Architectures and executable code
+| File | Purpose |
+| --- | --- |
+| \`primary_model_ci.csv\` | Four original model means and confidence intervals |
+| \`primary_paired_ci.csv\` | Six paired four-model comparisons |
+| \`six_model_ci.csv\` | Six model means and confidence intervals |
+| \`six_model_paired_ci.csv\` | Fifteen six-model comparisons |
+| \`document_scores.csv\` | The aligned 400-document score table |
+| \`efficiency.csv\` | Official score, timing, GPU and model metadata per run |
+| \`provenance.json\` | Model/run IDs, file checksums, GPU allocations and bootstrap parameters |
+| \`figure_primary.png\`, \`figure_six_models.png\` | Accuracy plots with 95% intervals |
 
-```text
-Image ----------------------------------------> Qwen3.5-9B / MiniCPM-V-4.6
-    |
-    +--> PaddleOCR (flat text) ----------------> Qwen3.5-9B / Qwen2.5-14B
-    |
-    +--> PaddleOCR (text + bounding boxes) ----> Qwen3.5-9B
-    |
-    +--> PP-StructureV3 (Markdown)
-           + English full-image OCR recovery ---> Qwen3.5-9B
-```
+The script is deliberately **fail-closed**: if one GPU is wrong, scores are incomplete, or the run has a different manifest, we stop rather than publish misleading "final" numbers.
 
-- `src/ulm_extractor/`: image validation, model adapters, OCR/layout extraction, Markdown recovery, worker, batching, resume, official scoring and publication analysis.
-- `model.yml`, `model-baselines.yml`, `model-laocr.yml`, `model-ppstructure.yml`: explicit model configurations.
-- `slurm/`: isolated, dependency-aware Slurm GPU workers and a CPU collector.
-- `scripts/`: CPU publication reproduction plus GPU smoke/dependency checks.
-- `analysis/`: seven-run registry, lossless score panel, and historically observed efficiency.
-- `docs/`: research methods, results, reproducibility, and the full Helix inference runbook.
-- `tests/`: offline inference orchestration, OCR text recovery, publication statistics and data-integrity tests.
+### Step 11.3 — Freeze what we actually ran
 
-The original source code used for publication is anchored to [research commit `4aff4fb`](https://github.com/econoberries/ULM-Project-Extractor-VLM-OCRLM/tree/4aff4fb97a5f818884584720bd2e607c7a1f4245). No historical predictions or batch UUIDs were overwritten when publishing this repository.
+Before submission, keep the final \`batch.json\`, \`documents.json\`, per-run \`predictions_scored.json\`, \`metrics.json\`, OCR index files, the final analysis folder, and \`git rev-parse HEAD\` in a protected archive. Keep original predictions and intermediate OCR outputs when permissible. Avoid pushing OCRBench images/annotations into GitHub without reviewing the benchmark's redistribution terms.
 
-## Full inference reproduction (GPU/Helix)
+Once the new figures and tables are checked against the paper, we can publish those exact outputs, add a stable release tag, and replace the **pending** status with measured results in this README. **At present we have not submitted or scored the new rerun.**
 
-If you want to regenerate model predictions from OCRBench images rather than just rebuild the analysis, follow the [separate Helix inference runbook](docs/HELIX_INFERENCE.md). That explains the distinct Torch and Paddle CUDA environments, model pinning, diagnostics, Slurm scheduling, and the official upstream scorer.
+## 12. Troubleshooting
 
-**Important limitations:** the paper's processing-time estimates combine separately measured OCR and LM stages; PyTorch peak-memory numbers do **not** include PaddlePaddle OCR memory. Archived experiments used a mixture of A100 **40 GB** and **80 GB** devices, so their timing/memory metrics are not a controlled same-hardware efficiency experiment. See [analysis/efficiency_observations.csv](analysis/efficiency_observations.csv).
+| Symptom | What to check / do |
+| --- | --- |
+| Slurm rejects \`gpumem_per_gpu\` request | Verify \`sinfo\` and the live cluster GRES rules; use \`sbatch --test-only\`. Do not fall back silently to unrestricted A100 |
+| Job lands on A100 40 GB | The worker will exit before inference because its VRAM check fails. Confirm the submitted \`--gres\` and exported minimum threshold |
+| \`libcuda.so.1\` missing on login node | Test on a GPU-allocated Slurm node, not the login node |
+| Torch/Paddle dependency conflict | Keep \`.venv\` and the three Paddle virtual environments separate; use the Torch repair requirements only when needed |
+| \`torchvision\` or \`paddleocr\` missing | Reinstall into the matching environment, not system Python |
+| CUDA/Paddle smoke test fails | Inspect \`gpu-check-<id>.out\`, GPU VRAM, \`pip check\`, PyTorch/Paddle versions and driver |
+| OCR cache \`index.json\` missing | Read the separate OCR job log; LM jobs depend on it |
+| PP Markdown is empty | Inspect PP parser job, recovered Markdown, raw JSON and audit output |
+| Worker is \`failed\` | Inspect \`runs/<run-id>/predictions.json\` and logs, then preview \`extractor resume\` |
+| Worker is \`submitted\` or \`running\` | Check \`squeue\` and \`sacct\` first; don't submit a competing duplicate worker |
+| All predictions exist but scoring failed | Install scorer dependencies and rerun only the CPU collector |
+| Saved bootstrap batch mixes models or documents | Select the single newly completed batch rather than old exploratory batches |
+| \`finalize_benchmark.py\` reports hardware mismatch | Check both LM \`metadata.json\` and each OCR \`index.json\`; don't suppress the validation |
+| A100 80 GB queue is long | Consider more wall-time headroom or waiting for allocation; changing to H200/40 GB would constitute a different hardware design |
+| Output folder already exists | The finalizer protects existing results; preserve the folder and use a new output directory only for intentionally separate analysis |
 
-## Tests
+## 13. Reproducibility, limitations and references
 
-```bash
-.venv-analysis/bin/python -m unittest discover -s tests -v
-```
+Our goal is for someone else to understand **what was measured**, **how it was measured**, and **how to repeat it**. Our code versions and model revisions are pinned; every new batch records its document manifest, model/run UUIDs and GPU request, and the worker records its actual allocated GPU. The finalizer keeps score and hardware provenance next to the statistical results.
 
-CI additionally re-runs the full 10,000-draw CPU bootstrap and renders the figures. Offline tests use mocks for GPU-dependent functionality; passing them does **not** establish that new GPUs reproduce the historical model tokens bit-for-bit.
+Passing GitHub's **offline tests** proves that configuration, orchestration and analysis code satisfy the tested contracts. It does **not** execute Qwen/MiniCPM on a GPU. For genuine inference reproduction, the Helix smoke tests and fresh Slurm run described above are still required.
 
-## References, citation and permissions
+Important limitations remain even after standardizing hardware: the tested corpus contains only 400 English KIE questions; the OCR algorithms and model families differ across some arms; OCR/LM timing components are measured in separate jobs; GPU memory is PyTorch-only for LM allocations; and the bootstrap inference does not demonstrate performance in unseen document domains.
 
-- [Official OCRBench v2 code, data access and evaluator](https://github.com/Yuliang-Liu/MultimodalOCR)
-- [OCRBench v2 research paper](https://proceedings.neurips.cc/paper_files/paper/2025/hash/8c2e6bb15be1894b8fb4e0f9bcad1739-Abstract-Datasets_and_Benchmarks_Track.html)
-- [Project citation metadata](CITATION.cff)
-- [Source/archive provenance](docs/REPRODUCIBILITY.md)
+**External sources**
 
-**License status:** repository code is available for inspection and research reproduction. The project team should approve an explicit open-source license before third-party code reuse is authorized. Dependencies, upstream evaluator, benchmark assets, and model weights retain their own licenses; no right to redistribute them is implied.
+- [OCRBench v2 data, code and official evaluator](https://github.com/Yuliang-Liu/MultimodalOCR)
+- [OCRBench v2 paper](https://proceedings.neurips.cc/paper_files/paper/2025/hash/8c2e6bb15be1894b8fb4e0f9bcad1739-Abstract-Datasets_and_Benchmarks_Track.html)
+- [Helix GPU hardware](https://wiki.bwhpc.de/e/Helix/Hardware)
+- [Helix Slurm GPU and memory requests](https://wiki.bwhpc.de/e/Helix/Slurm)
+- [PaddleOCR documentation](https://www.paddleocr.ai/latest/en/index.html)
+
+**Project team:** Khaira Abdillah, Hengyi Liu, and Madeline Miller. See \`CITATION.cff\` for citation metadata. The team should agree on code licensing before publishing a reuse license; upstream datasets, models and dependencies retain their own licenses.
+
+_The source repo and earlier exploratory scores are preserved in [our original research repository](https://github.com/econoberries/ULM-Project-Extractor-VLM-OCRLM). They are not substituted for the results of this fresh controlled rerun._
