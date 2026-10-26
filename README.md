@@ -6,7 +6,28 @@ We wanted to find out whether it is better to give a document image directly to 
 
 This repository contains **the code to run a six-model benchmark on bwForCluster Helix**, evaluate predictions with the official OCRBench v2 scorer, and calculate statistical comparisons. These instructions assume a first-time setup, with measured results to be added after the benchmark.
 
-**Start here:** this README contains the full workflow, from installation to Slurm submission, scoring, statistical analysis, and troubleshooting. The short README files inside individual folders only help with navigation.
+**Start here:** The short roadmap below shows the whole workflow. The numbered sections afterward explain each step, including the commands, metrics, statistical comparisons and troubleshooting. Folder READMEs are only brief navigation aids.
+
+## How to reproduce our experiment — the full workflow at a glance
+
+This is the order to follow on a **fresh Helix installation**. You do not need any files or results from another project. Each step links to the detailed instructions below.
+
+| Step | What to do | Where to find the commands |
+| --- | --- | --- |
+| **1. Clone** | Log in to Helix, check Git / Slurm / Python 3.12, and clone this repository. | [Setup, §5](#5-set-up-the-project-on-helix) |
+| **2. Install** | Create four separate Python environments: one for Torch/LMs and three for PaddleOCR-based pipelines. | [Setup, §5](#5-set-up-the-project-on-helix) |
+| **3. Prepare the benchmark** | Download the official OCRBench v2 images and annotations, then clone the pinned official evaluator. These are **not provided in this repository**. | [Setup, §5](#5-set-up-the-project-on-helix) |
+| **4. Check dependencies** | Verify the four environments, run offline tests, and confirm that the loader can select the 400 English KIE questions. | [Validation, §6](#6-check-gpu-allocation-and-dependencies) |
+| **5. Check GPU execution** | Test the A100 80 GB-class Slurm request; run the Torch, Paddle and single-image/model smoke tests. | [Validation, §6](#6-check-gpu-allocation-and-dependencies) |
+| **6. Preview the experiment** | Use `extractor benchmark --dry-run` with `model.yml` to check the **3 OCR + 6 model + 1 collector** jobs without submitting them. | [Execution, §7](#7-run-all-six-models) |
+| **7. Submit once** | Run the same benchmark command without `--dry-run`. Save the printed batch ID and Slurm job IDs. | [Execution, §7](#7-run-all-six-models) |
+| **8. Check and score** | Monitor jobs and inspect the batch-specific `benchmark_summary.csv`. The CPU collector applies the official KIE scorer; resume or rescore only if needed. | [Outputs, §8](#8-monitor-recover-and-score) |
+| **9. Compare the models** | After all six runs have 400 scored documents, run `finalize_benchmark.py` to produce paired-bootstrap confidence intervals, efficiency tables and figures. | [Metrics, §9](#9-how-we-measure-accuracy-and-efficiency), [bootstrap, §10](#10-paired-bootstrap-statistical-comparisons), [analysis, §11](#11-finalize-the-fresh-benchmark) |
+| **10. Preserve the results** | Check the generated tables, figures, original predictions, checksums and configuration; archive the exact code commit and batch. | [Final checks, §11](#11-finalize-the-fresh-benchmark) |
+
+**In short:** clone → install → obtain data/evaluator → validate → GPU smoke test → dry run → submit → score → bootstrap → archive.
+
+The full benchmark produces **six model run folders**, one batch summary, and a separate final analysis folder. All generated data, model downloads and results stay outside Git; the repository contains the implementation and reproduction instructions.
 
 ## Contents
 
