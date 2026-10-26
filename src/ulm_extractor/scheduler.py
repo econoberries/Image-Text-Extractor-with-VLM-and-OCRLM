@@ -25,7 +25,16 @@ def submit_batch(data, models, args):
     docspath = batchdir / "documents.json"
     specpath = batchdir / "batch.json"
     runs = [{**model, "run_id": str(uuid4())} for model in models]
+    # Save the exact repository commit used to submit these GPU experiments.
+    try:
+        code_revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT,
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        code_revision = None
     spec = {
+        "source_git_commit": code_revision,
         "batch_id": batch_id, "documents_file": str(docspath),
         "image_directory": data["image_directory"],
         "annotations": data["annotations"],

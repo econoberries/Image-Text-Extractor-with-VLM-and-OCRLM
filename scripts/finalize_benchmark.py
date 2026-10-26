@@ -52,9 +52,17 @@ def inspect_batch(batch_path):
         name = model["id"]
         folder = root / model["run_id"]
         state = read_json(folder / "run.json")
+        if state.get("run_id") not in (None, model["run_id"]) or state.get("batch_id") != batch["batch_id"]:
+            raise ValueError(f"{name}: run identity does not match batch")
+        if state.get("manifest_sha256") not in (None, batch["manifest_sha256"]):
+            raise ValueError(f"{name}: run document manifest differs from batch")
         if state.get("status") != "scored":
             raise ValueError(f"{name}: run not scored (status={state.get('status')})")
         metadata = read_json(folder / "metadata.json")
+        if metadata.get("config") not in (None, model):
+            raise ValueError(f"{name}: saved model configuration differs from batch")
+        if metadata.get("manifest_sha256") not in (None, batch["manifest_sha256"]):
+            raise ValueError(f"{name}: model metadata document manifest differs from batch")
         names = metadata.get("gpu_names") or []
         memory = metadata.get("gpu_memory_gib") or []
         if len(names) != 1 or "A100" not in names[0] or "80GB" not in names[0]:
@@ -72,6 +80,9 @@ def inspect_batch(batch_path):
             "pipeline": model["pipeline"], "ocr_engine": model.get("ocr"),
             "model_checkpoint": model["checkpoint"], "model_revision": model["revision"],
             "gpu_name": names[0], "gpu_memory_gib": float(memory[0]),
+            "torch_version": metadata.get("torch_version"),
+            "transformers_version": metadata.get("transformers_version"),
+            "inference_dtype": metadata.get("dtype"),
             "scored_sha256": sha256(scored), "metric_sha256": sha256(metric_file),
             "official_kie_f1": metrics["official_kie_f1"],
             "mean_processing_s": metrics.get("mean_latency_s"),
@@ -157,6 +168,7 @@ def finalize(batch_path, output=None, draws=10000, seed=2026, figures=True):
         "confidence": 0.95,
         "familywise_correction": "Bonferroni within each reported subset and model-pair panel",
         "batch_id": batch["batch_id"], "batch_file": str(batch_path),
+        "source_git_commit": batch.get("source_git_commit"),
         "batch_file_sha256": sha256(batch_path),
         "dataset_manifest_sha256": manifest,
         "gpu_gres": batch["gpu_gres"],
