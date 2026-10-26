@@ -139,26 +139,26 @@ The two flat OCR → LM models share one cached OCR extraction, so OCR is not ne
 
 The commands in Sections 5–8 are for the **Helix login node**, except where we explicitly use `sbatch`. Always run GPU workloads through Slurm, **not** directly on a login node.
 
-### Step 5.1 — Clone the new repository
+### Step 5.1 — Check Helix access and clone the project
+
+Connect to Helix using your university account and the cluster's documented SSH login procedure. In the **Helix terminal**, check that Git, Slurm and Python 3.12 are available:
 
 ```bash
-cd ~
+command -v git
+command -v sbatch
+/usr/bin/python3.12 --version
+```
+
+Clone this repository into your home directory:
+
+```bash
+cd "$HOME"
 git clone https://github.com/econoberries/Image-Text-Extractor-with-VLM-and-OCRLM.git
-cd ~/Image-Text-Extractor-with-VLM-and-OCRLM
-```
-
-If the repository is already cloned:
-
-```bash
-cd ~/Image-Text-Extractor-with-VLM-and-OCRLM
-git pull --ff-only origin main
-```
-
-Check which code is being used and save its commit SHA in your research notes:
-
-```bash
+cd Image-Text-Extractor-with-VLM-and-OCRLM
 git rev-parse HEAD
 ```
+
+Save the displayed commit SHA to identify the exact code used for the experiment. All the following commands assume you are in this repository root.
 
 ### Step 5.2 — Create the separate Python environments
 
@@ -206,29 +206,38 @@ test -x .venv-ppstructure/bin/python || /usr/bin/python3.12 -m venv .venv-ppstru
 
 The Paddle GPU wheel is installed *last* within each Paddle environment. **Never install `paddlepaddle-gpu` into `.venv`.** We install CPU statistical-analysis dependencies (NumPy and matplotlib) into a separate `.venv-analysis` later or, for convenience, into the existing `.venv` after inference has finished.
 
-### Step 5.3 — Get the OCRBench dataset and evaluator
+### Step 5.3 — Download OCRBench v2 and clone the official evaluator
 
-We do not redistribute the official images or annotations. Download or locate OCRBench v2 yourself. One existing project path on Helix was:
+The benchmark dataset is **not included** in this GitHub repository. Download it from the authors' [OCRBench v2 dataset instructions](https://github.com/Yuliang-Liu/MultimodalOCR/blob/main/OCRBench_v2/README.md), extract the archive, and transfer the extracted folder to your Helix home directory using your institution's supported file-transfer method.
 
-```bash
-export EN_PART="$HOME/ULM-VLM-OCR-IE/data/OCRBench_v2/EN_part"
-test -d "$EN_PART" && echo "English images found."
-test -f "$(dirname "$EN_PART")/OCRBench_v2.json" && echo "Annotations found."
+The required directory structure is:
+
+```text
+$HOME/OCRBench_v2/
+├── EN_part/
+└── OCRBench_v2.json
 ```
 
-If your data are elsewhere, change `EN_PART`. The path **must point to the `EN_part` directory**, not the repository root.
-
-Obtain the upstream evaluator:
+Back in the **Helix terminal**, set the path and check that the files exist:
 
 ```bash
-test -d "$HOME/MultimodalOCR/.git" || \
-  git clone https://github.com/Yuliang-Liu/MultimodalOCR.git "$HOME/MultimodalOCR"
+export EN_PART="$HOME/OCRBench_v2/EN_part"
+test -d "$EN_PART" && echo "English images found"
+test -f "$HOME/OCRBench_v2/OCRBench_v2.json" && echo "Annotations found"
+```
 
+`--input` must point to the **`EN_part` directory**, not its parent. The loader will verify the 400 English KIE items. Keep the official annotations and images unchanged.
+
+Separately, clone the source code of the **official evaluator**. Cloning this repository does not download the benchmark images:
+
+```bash
+git clone https://github.com/Yuliang-Liu/MultimodalOCR.git "$HOME/MultimodalOCR"
 git -C "$HOME/MultimodalOCR" checkout 4e363b3f499811b43d792ef0bb33932ef05eca27
-test -f "$HOME/MultimodalOCR/OCRBench_v2/eval_scripts/eval.py"
+test -f "$HOME/MultimodalOCR/OCRBench_v2/eval_scripts/eval.py" \
+  && echo "Official evaluator found"
 ```
 
-If a different evaluator checkout already exists, check for any uncommitted work **before** checking out the reference commit. Do not replace the official evaluation code.
+Both Git repositories are installed under `$HOME`, matching the evaluator path expected by the benchmark CLI.
 
 ## 6. Check GPU allocation and dependencies
 
