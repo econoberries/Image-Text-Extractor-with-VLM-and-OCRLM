@@ -78,6 +78,13 @@ def submit_batch(data, models, args):
     logpath = str(batchdir / "logs" / "%x-%j.out")
     batcharg = str(specpath)
     jobs = {}
+    def record_job(label, command):
+        job_id = _sbatch(command, args.dry_run)
+        jobs[label] = job_id
+        if not args.dry_run:
+            write_json(batchdir / "jobs.json", jobs)
+        return job_id
+
     for engine, action, job_name in (
         ("paddleocr", "ocr", "ulm-ocr"),
         ("paddleocr_layout", "ocr-layout", "ulm-la-ocr"),
