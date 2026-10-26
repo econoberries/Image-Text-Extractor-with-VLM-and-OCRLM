@@ -651,17 +651,18 @@ mapfile -t RUN_DIRS < <(
     "$BATCH_DIR/benchmark_summary.csv"
 )
 
-# Abort rather than accidentally archive a partial or wrong experiment.
-test "${#RUN_DIRS[@]}" -eq 6 || { echo "Expected six run folders"; exit 1; }
-test -d "runs/analysis/$BATCH_ID" || { echo "Final analysis missing"; exit 1; }
+# Skip archiving if this batch has incomplete results.
+if [ "${#RUN_DIRS[@]}" -ne 6 ] || [ ! -d "runs/analysis/$BATCH_ID" ]; then
+  echo "Expected six model runs and a completed final analysis; archive not created."
+else
+  tar -czf "$HOME/ocrbench_${BATCH_ID}_results.tar.gz" \
+    "$BATCH_DIR" \
+    "runs/analysis/$BATCH_ID" \
+    "${RUN_DIRS[@]}"
 
-tar -czf "$HOME/ocrbench_${BATCH_ID}_results.tar.gz" \
-  "$BATCH_DIR" \
-  "runs/analysis/$BATCH_ID" \
-  "${RUN_DIRS[@]}"
-
-ls -lh "$HOME/ocrbench_${BATCH_ID}_results.tar.gz"
-sha256sum "$HOME/ocrbench_${BATCH_ID}_results.tar.gz"
+  ls -lh "$HOME/ocrbench_${BATCH_ID}_results.tar.gz"
+  sha256sum "$HOME/ocrbench_${BATCH_ID}_results.tar.gz"
+fi
 ```
 
 This archive includes the batch metadata and logs, three OCR caches, six model-run folders, and all final analysis outputs. It does **not** include model weights, the original OCRBench image dataset, or the Git source checkout. Keep the resulting archive and checksum somewhere protected. Do not publish OCRBench images or annotations without checking redistribution permissions.
