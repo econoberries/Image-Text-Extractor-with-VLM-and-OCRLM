@@ -62,7 +62,7 @@ def main(argv=None):
                   f"manifest SHA256 {dataset['manifest_sha256']}", flush=True)
             submit_batch(dataset, models, args)
             return 0
-        except (OSError, ValueError, subprocess.CalledProcessError) as exc:
+        except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
 
