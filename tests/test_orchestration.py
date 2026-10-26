@@ -143,6 +143,16 @@ class ContractTests(unittest.TestCase):
         self.assertNotIn("error", read_json(status_path))
         self.assertEqual(len(read_json(run_dir / "predictions.json")), 400)
 
+    def test_invalid_memory_fails_before_creating_run_directory(self):
+        data = load_documents(self.images)
+        args = self.scheduler_args()
+        args.min_gpu_memory_gib = -1
+        with patch("ulm_extractor.scheduler._sbatch") as submit:
+            with self.assertRaisesRegex(ValueError, "nonnegative integer"):
+                submit_batch(data, load_config(self.yml), args)
+        submit.assert_not_called()
+        self.assertFalse((self.base / "runs").exists())
+
     def test_dry_run_does_not_write_or_submit(self):
         data = load_documents(self.images)
         with patch("ulm_extractor.scheduler.subprocess.run", side_effect=AssertionError("sbatch called")):
