@@ -421,6 +421,10 @@ cat "runs/batches/<NEW_BATCH_UUID>/logs/<JOB_LOG_FILENAME>.out"
 
 Check that each row in the **batch-specific** summary has \`status=scored\` and \`completed_documents=400\`. The top-level \`runs/benchmark_summary.csv\` can be replaced by subsequent batches, so it is **not** the source of truth.
 
+### If submitting the batch stops partway through
+
+Slurm accepts jobs one at a time, so a submission error does not imply earlier jobs were rejected. The batch folder now contains an incremental `jobs.json` ledger and a `submission.json` receipt. A receipt marked `partial_failure` means the original submission did not finish. Review the saved job IDs in those files and check the queue/accounting status before starting another batch. The scheduler does not automatically cancel jobs. The resume command rejects a batch that has not finished its initial submission.
+
 ### Step 8.2 — Recover a failed or interrupted batch
 
 First verify that no old job for this batch is still pending or running:
