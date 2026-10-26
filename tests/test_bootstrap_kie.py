@@ -105,7 +105,7 @@ class BootstrapTests(unittest.TestCase):
             batch = create_fixture(root)
             out = Path(tmp) / "analysis"
             dest = bootstrap.analyze([batch], output_dir=out, draws=200, seed=2026)
-            self.assertEqual(dest, out)
+            self.assertEqual(dest, out.resolve())
             self.assertTrue((dest / "bootstrap_models.csv").is_file())
             self.assertTrue((dest / "bootstrap_pairs.csv").is_file())
             self.assertTrue((dest / "paired_document_scores.csv").is_file())
