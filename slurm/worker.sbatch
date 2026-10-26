@@ -32,8 +32,14 @@ if ! command -v nvidia-smi >/dev/null; then
   echo "GPU job has no nvidia-smi" >&2
   exit 2
 fi
-nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
-gpu_name="$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
+gpu_selector="${SLURM_JOB_GPUS:-${CUDA_VISIBLE_DEVICES:-0}}"
+if [[ "$gpu_selector" == *,* ]]; then
+  echo "Expected exactly one allocated GPU, got selector: $gpu_selector" >&2
+  exit 2
+fi
+echo "Checking GPU selector: $gpu_selector"
+nvidia-smi --id="$gpu_selector" --query-gpu=name,memory.total --format=csv,noheader
+gpu_name="$(nvidia-smi --id="$gpu_selector" --query-gpu=name --format=csv,noheader | head -1)"
 if [[ "$gpu_name" != *"$EXTRACTOR_EXPECT_GPU"* ]]; then
   echo "Wrong GPU: expected $EXTRACTOR_EXPECT_GPU, got $gpu_name" >&2
   exit 2
@@ -41,7 +47,7 @@ fi
 
 # Reject GPU-family or memory mismatches *before* importing CUDA libraries.
 # Slurm's A100 request alone does not distinguish 40 GB from 80 GB.
-memory_mib="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | tr -d ' ')"
+memory_mib="$(nvidia-smi --id="$gpu_selector" --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | tr -d ' ')"
 required_mib="${EXTRACTOR_MIN_GPU_MEMORY_MIB:-0}"
 if ! [[ "$memory_mib" =~ ^[0-9]+$ && "$required_mib" =~ ^[0-9]+$ ]]; then
   echo "Cannot parse allocated GPU VRAM or required memory threshold" >&2

@@ -47,15 +47,21 @@ if ! command -v nvidia-smi >/dev/null 2>&1; then
   exit 2
 fi
 nvidia-smi
+gpu_selector="${SLURM_JOB_GPUS:-${CUDA_VISIBLE_DEVICES:-0}}"
+if [[ "$gpu_selector" == *,* ]]; then
+  echo "Expected exactly one allocated GPU, got selector: $gpu_selector" >&2
+  exit 2
+fi
+echo "Checking GPU selector: $gpu_selector"
 expected_gpu="${EXTRACTOR_EXPECT_GPU:-A100}"
-if ! nvidia-smi --query-gpu=name --format=csv,noheader | grep -qiF "$expected_gpu"; then
+if ! nvidia-smi --id="$gpu_selector" --query-gpu=name --format=csv,noheader | grep -qiF "$expected_gpu"; then
   echo "Expected GPU containing '$expected_gpu', but the allocation reports:" >&2
   nvidia-smi --query-gpu=name --format=csv,noheader >&2
   exit 2
 fi
 echo "GPU family check: $expected_gpu"
 required_mib="${EXTRACTOR_MIN_GPU_MEMORY_MIB:-71680}"
-actual_mib="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | tr -d ' ')"
+actual_mib="$(nvidia-smi --id="$gpu_selector" --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | tr -d ' ')"
 if ! [[ "$required_mib" =~ ^[0-9]+$ && "$actual_mib" =~ ^[0-9]+$ ]] || (( actual_mib < required_mib )); then
   echo "GPU memory check failed: allocated ${actual_mib} MiB; required ${required_mib} MiB" >&2
   exit 2
