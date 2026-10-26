@@ -1,15 +1,14 @@
-# Final analysis
+# Statistical analysis
 
-The new experiment uses one fresh six-model batch rather than the previous seven-run exploratory score archive.
+This folder explains how to generate the final statistical results. The six model jobs produce their predictions and official OCRBench v2 scores before analysis begins.
 
-After all six models have `status=scored`, run:
+Once every run has `status=scored`, run the CPU-only finalizer from the repository root:
 
 ```bash
-.venv-analysis/bin/python scripts/finalize_benchmark.py --batch runs/batches/<NEW_BATCH_UUID>/batch.json
+.venv-analysis/bin/python scripts/finalize_benchmark.py \
+  --batch runs/batches/<BATCH_ID>/batch.json
 ```
 
-The results are written into the **Git-ignored** `runs/analysis/<NEW_BATCH_UUID>/` directory: primary and six-model score CIs, pairwise differences, descriptive efficiency, aligned item scores, figures and provenance.
+The generated files are written to `runs/analysis/<BATCH_ID>/`, which is excluded from Git. Outputs include four- and six-model confidence intervals, paired bootstrap comparisons, aligned document-level scores, descriptive efficiency metrics, figures and provenance.
 
-The statistical implementation is `scripts/bootstrap_kie.py`. See the **root README, Sections 9–11**, for assumptions and commands.
-
-Historical publication scores and figures can still be recovered from the Git history at commit `c14567cab246ca9c26d575fece9da4b5983b44aa` or from the separate research repository. They are not valid results for the new controlled rerun.
+For the bootstrap method, assumptions, and complete setup instructions, use **Sections 9–11 of the root README**.
