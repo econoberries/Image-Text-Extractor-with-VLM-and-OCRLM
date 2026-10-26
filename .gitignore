@@ -18,3 +18,13 @@ gpu-check-*.out
 
 # PP-StructureV3 document parser and PaddlePaddle GPU environment
 /.venv-ppstructure/
+
+# CPU-only publication reproduction virtual environment
+/.venv-analysis/
+
+# Regenerable publication tables and figures
+/results/final/
+
+# Local independent archive copies (do not publicly publish raw benchmark predictions)
+/runs*.zip
+/ULM_Final_Bootstrap_Package.zip
