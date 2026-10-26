@@ -124,7 +124,7 @@ class PPStructureContracts(unittest.TestCase):
                 "manifest_sha256": "a" * 64,
             }
             with (
-                patch.dict(sys.modules, {"paddleocr": SimpleNamespace()}),
+                patch.dict(sys.modules, {"paddleocr": SimpleNamespace(PaddleOCR=Mock(), PPStructureV3=Mock())}),
                 patch("ulm_extractor.ppstructure.version", return_value="3.7.0"),
                 patch("ulm_extractor.ppstructure.gpu_hardware",
                       side_effect=RuntimeError("GPU metadata unavailable")),
