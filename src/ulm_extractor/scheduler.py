@@ -19,6 +19,9 @@ def _sbatch(command, dry_run):
     return job_id
 
 def submit_batch(data, models, args):
+    min_memory = getattr(args, "min_gpu_memory_gib", 0)
+    if type(min_memory) is not int or min_memory < 0 or min_memory > 1000:
+        raise ValueError("--min-gpu-memory-gib must be a nonnegative integer")
     batch_id = str(uuid4())
     outroot = Path(args.output_root).expanduser().resolve()
     batchdir = outroot / "batches" / batch_id
@@ -65,9 +68,6 @@ def submit_batch(data, models, args):
                 "manifest_sha256": spec["manifest_sha256"],
                 "status": "submitted",
             })
-    min_memory = getattr(args, "min_gpu_memory_gib", 0)
-    if type(min_memory) is not int or min_memory < 0 or min_memory > 1000:
-        raise ValueError("--min-gpu-memory-gib must be a nonnegative integer")
     gpu_base = [
         "sbatch", "--parsable", "--partition", args.partition,
         "--gres", args.gres, "--cpus-per-task", str(args.cpus),
