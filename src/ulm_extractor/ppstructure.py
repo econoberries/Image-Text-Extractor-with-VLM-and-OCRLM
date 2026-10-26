@@ -114,13 +114,9 @@ def run_ppstructure(batch):
     else:
         index = {**expected, "records": {}}
 
-    # Keep the PP parser/fallback OCR GPU separately from Qwen LM metadata.
-    try:
-        index["gpu_hardware"] = gpu_hardware()
-    except (OSError, ValueError, RuntimeError):
-        # Unit-test mocks may not allocate an NVIDIA GPU. Real Slurm workers
-        # refuse missing GPU hardware before executing this parser.
-        pass
+    # Hardware provenance is required for the final same-GPU comparison.
+    # Fail before OCR inference if the allocated GPU cannot be identified.
+    index["gpu_hardware"] = gpu_hardware()
     pending = [row for row in records
                if key_for(row) not in index["records"]
                or not Path(index["records"][key_for(row)]["text_path"]).is_file()]
