@@ -134,7 +134,10 @@ def submit_batch(data, models, args):
     collector += [str(ROOT / "slurm" / "collector.sbatch"), "collect", "--batch", batcharg]
     record_job("collector", collector)
     if not args.dry_run:
-        write_json(batchdir / "jobs.json", jobs)
+        write_json(batchdir / "submission.json", {
+            "status": "complete", "batch_id": batch_id,
+            "submitted_jobs": jobs, "error": None,
+        })
     print(f"Batch UUID: {batch_id}")
     print(f"Summary: {batchdir / 'benchmark_summary.csv'}")
     return {"batch_id": batch_id, "batch_path": str(specpath), "jobs": jobs, "runs": runs}
