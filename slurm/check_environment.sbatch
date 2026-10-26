@@ -47,21 +47,25 @@ if ! command -v nvidia-smi >/dev/null 2>&1; then
   exit 2
 fi
 nvidia-smi
-gpu_selector="${SLURM_JOB_GPUS:-${CUDA_VISIBLE_DEVICES:-0}}"
-if [[ "$gpu_selector" == *,* ]]; then
-  echo "Expected exactly one allocated GPU, got selector: $gpu_selector" >&2
+# Slurm's global GPU ID can differ from nvidia-smi's job-visible index.
+# The benchmark requests one GPU: reject ambiguous visibility rather than guessing.
+gpu_report="$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits)"
+mapfile -t gpu_rows <<< "$gpu_report"
+if [[ -z "$gpu_report" || ${#gpu_rows[@]} -ne 1 ]]; then
+  echo "Expected exactly one GPU visible to this job; nvidia-smi returned: $gpu_report" >&2
   exit 2
 fi
-echo "Checking GPU selector: $gpu_selector"
+gpu_name="${gpu_rows[0]%,*}"
+actual_mib="${gpu_rows[0]##*,}"
+actual_mib="${actual_mib//[[:space:]]/}"
+echo "GPU visible to job: $gpu_name ($actual_mib MiB)"
 expected_gpu="${EXTRACTOR_EXPECT_GPU:-A100}"
-if ! nvidia-smi --id="$gpu_selector" --query-gpu=name --format=csv,noheader | grep -qiF "$expected_gpu"; then
-  echo "Expected GPU containing '$expected_gpu', but the allocation reports:" >&2
-  nvidia-smi --query-gpu=name --format=csv,noheader >&2
+if [[ "${gpu_name,,}" != *"${expected_gpu,,}"* ]]; then
+  echo "Expected GPU containing '$expected_gpu', but got: $gpu_name" >&2
   exit 2
 fi
 echo "GPU family check: $expected_gpu"
 required_mib="${EXTRACTOR_MIN_GPU_MEMORY_MIB:-71680}"
-actual_mib="$(nvidia-smi --id="$gpu_selector" --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | tr -d ' ')"
 if ! [[ "$required_mib" =~ ^[0-9]+$ && "$actual_mib" =~ ^[0-9]+$ ]] || (( actual_mib < required_mib )); then
   echo "GPU memory check failed: allocated ${actual_mib} MiB; required ${required_mib} MiB" >&2
   exit 2
