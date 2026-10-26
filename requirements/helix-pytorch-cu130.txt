@@ -1,0 +1,5 @@
+# PyTorch CUDA 13.0 profile for .venv (VLM and OCR->LM workers).
+# NEVER install PaddlePaddle GPU into this same environment.
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.14.1+cu130
+torchvision==0.29.1+cu130
