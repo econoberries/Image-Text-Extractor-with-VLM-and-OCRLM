@@ -91,11 +91,11 @@ def submit_batch(data, models, args):
         ("ppstructurev3", "ppstructure", "ulm-ppstructure"),
     ):
         if any(x.get("ocr") == engine for x in runs):
-            jobs[engine] = _sbatch([
+            record_job(engine, [
                 *gpu_base, "--job-name", job_name, "--output", logpath,
                 str(ROOT / "slurm" / "worker.sbatch"),
                 action, "--batch", batcharg,
-            ], args.dry_run)
+            ])
     for model in runs:
         command = [
             *gpu_base, "--job-name", f"ulm-{model['id'][:30]}",
@@ -107,7 +107,7 @@ def submit_batch(data, models, args):
             str(ROOT / "slurm" / "worker.sbatch"),
             "run", "--batch", batcharg, "--run-id", model["run_id"]
         ]
-        jobs[model["run_id"]] = _sbatch(command, args.dry_run)
+        record_job(model["run_id"], command)
     # Collect after ALL jobs finish, regardless of exit codes. Always CPU-only.
     dependencies = [jid for jid in jobs.values() if jid != "DRY_RUN"]
     collector = [
@@ -119,7 +119,7 @@ def submit_batch(data, models, args):
     if dependencies:
         collector += ["--dependency", "afterany:" + ":".join(dependencies)]
     collector += [str(ROOT / "slurm" / "collector.sbatch"), "collect", "--batch", batcharg]
-    jobs["collector"] = _sbatch(collector, args.dry_run)
+    record_job("collector", collector)
     if not args.dry_run:
         write_json(batchdir / "jobs.json", jobs)
     print(f"Batch UUID: {batch_id}")
