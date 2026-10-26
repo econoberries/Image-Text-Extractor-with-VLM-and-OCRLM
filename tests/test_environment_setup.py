@@ -110,7 +110,7 @@ class HelixEnvironmentContract(unittest.TestCase):
             ):
                 for gpu_report, expected_code in (
                     ("NVIDIA A100-SXM4-80GB, 81920", 0),
-                    ("NVIDIA A100-SXM4-80GB, 81920\\nNVIDIA A100-SXM4-80GB, 81920", 2),
+                    ("NVIDIA A100-SXM4-80GB, 81920\nNVIDIA A100-SXM4-80GB, 81920", 2),
                     ("NVIDIA A100-SXM4-40GB, 40960", 2),
                 ):
                     with self.subTest(script=script, gpu_report=gpu_report):
@@ -129,15 +129,15 @@ class HelixEnvironmentContract(unittest.TestCase):
 
         with patch.dict(os.environ, {"SLURM_JOB_GPUS": "4", "CUDA_VISIBLE_DEVICES": "0"}):
             with patch("ulm_extractor.gpu_hardware.subprocess.run") as smi:
-                smi.return_value.stdout = "NVIDIA A100-SXM4-80GB, 81920\\n"
+                smi.return_value.stdout = "NVIDIA A100-SXM4-80GB, 81920\n"
                 self.assertEqual(
                     gpu_hardware(),
                     {"name": "NVIDIA A100-SXM4-80GB", "memory_mib": 81920},
                 )
                 self.assertNotIn("--id", smi.call_args.args[0])
                 smi.return_value.stdout = (
-                    "NVIDIA A100-SXM4-80GB, 81920\\n"
-                    "NVIDIA A100-SXM4-80GB, 81920\\n"
+                    "NVIDIA A100-SXM4-80GB, 81920\n"
+                    "NVIDIA A100-SXM4-80GB, 81920\n"
                 )
                 with self.assertRaisesRegex(RuntimeError, "single allocated GPU"):
                     gpu_hardware()
