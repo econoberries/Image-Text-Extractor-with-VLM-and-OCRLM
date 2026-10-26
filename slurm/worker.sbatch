@@ -32,22 +32,25 @@ if ! command -v nvidia-smi >/dev/null; then
   echo "GPU job has no nvidia-smi" >&2
   exit 2
 fi
-gpu_selector="${SLURM_JOB_GPUS:-${CUDA_VISIBLE_DEVICES:-0}}"
-if [[ "$gpu_selector" == *,* ]]; then
-  echo "Expected exactly one allocated GPU, got selector: $gpu_selector" >&2
+# Slurm's global GPU ID may not match nvidia-smi's job-visible index.
+# A one-GPU benchmark job must see exactly one GPU; fail on ambiguity.
+gpu_report="$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits)"
+mapfile -t gpu_rows <<< "$gpu_report"
+if [[ -z "$gpu_report" || ${#gpu_rows[@]} -ne 1 ]]; then
+  echo "Expected exactly one GPU visible to this job; nvidia-smi returned: $gpu_report" >&2
   exit 2
 fi
-echo "Checking GPU selector: $gpu_selector"
-nvidia-smi --id="$gpu_selector" --query-gpu=name,memory.total --format=csv,noheader
-gpu_name="$(nvidia-smi --id="$gpu_selector" --query-gpu=name --format=csv,noheader | head -1)"
-if [[ "$gpu_name" != *"$EXTRACTOR_EXPECT_GPU"* ]]; then
+gpu_name="${gpu_rows[0]%,*}"
+memory_mib="${gpu_rows[0]##*,}"
+memory_mib="${memory_mib//[[:space:]]/}"
+echo "GPU visible to job: $gpu_name ($memory_mib MiB)"
+if [[ "${gpu_name,,}" != *"${EXTRACTOR_EXPECT_GPU,,}"* ]]; then
   echo "Wrong GPU: expected $EXTRACTOR_EXPECT_GPU, got $gpu_name" >&2
   exit 2
 fi
 
 # Reject GPU-family or memory mismatches *before* importing CUDA libraries.
 # Slurm's A100 request alone does not distinguish 40 GB from 80 GB.
-memory_mib="$(nvidia-smi --id="$gpu_selector" --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | tr -d ' ')"
 required_mib="${EXTRACTOR_MIN_GPU_MEMORY_MIB:-0}"
 if ! [[ "$memory_mib" =~ ^[0-9]+$ && "$required_mib" =~ ^[0-9]+$ ]]; then
   echo "Cannot parse allocated GPU VRAM or required memory threshold" >&2
