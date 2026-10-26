@@ -84,7 +84,10 @@ class PPStructureContracts(unittest.TestCase):
                   patch("ulm_extractor.ppstructure.version",
                         side_effect=lambda name: {
                             "paddleocr": "3.7.0", "paddlex": "3.7.2"}[name]),
-                  patch("ulm_extractor.ppstructure.synchronize_paddle")):
+                  patch("ulm_extractor.ppstructure.synchronize_paddle"),
+                  patch("ulm_extractor.ppstructure.gpu_hardware",
+                        return_value={"name": "NVIDIA A100-SXM4-80GB",
+                                      "memory_mib": 81000})):
                 run_ppstructure(batch)
                 run_ppstructure(batch)
             self.assertEqual(fake.count, 2)  # the second call reuses cached Markdown
@@ -92,6 +95,9 @@ class PPStructureContracts(unittest.TestCase):
             index = read_json(folder / "index.json")
             self.assertEqual(index["format"], FORMAT)
             self.assertEqual(index["settings"], SETTINGS)
+            self.assertEqual(index["gpu_hardware"],
+                             {"name": "NVIDIA A100-SXM4-80GB",
+                              "memory_mib": 81000})
             self.assertEqual(len(index["records"]), 2)
             for record in records:
                 data = index["records"][key_for(record)]
@@ -104,6 +110,28 @@ class PPStructureContracts(unittest.TestCase):
                 self.assertTrue(Path(data["original_markdown_path"]).is_file())
                 self.assertTrue(Path(data["audit_path"]).is_file())
                 self.assertIsInstance(data["ocr_seconds"], float)
+
+    def test_ppstructure_requires_gpu_provenance_before_ocr(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            docs = base / "documents.json"
+            write_json(docs, [])
+            batch = {
+                "batch_id": "gpu-check",
+                "documents_file": str(docs),
+                "output_root": str(base / "runs"),
+                "image_directory": str(base / "EN_part"),
+                "manifest_sha256": "a" * 64,
+            }
+            with (
+                patch.dict(sys.modules, {"paddleocr": SimpleNamespace()}),
+                patch("ulm_extractor.ppstructure.version", return_value="3.7.0"),
+                patch("ulm_extractor.ppstructure.gpu_hardware",
+                      side_effect=RuntimeError("GPU metadata unavailable")),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "GPU metadata unavailable"):
+                    run_ppstructure(batch)
+            self.assertFalse((base / "runs").exists())
 
     def test_resume_rejects_mismatched_ppstructure_cache_config(self):
         with tempfile.TemporaryDirectory() as temp:
