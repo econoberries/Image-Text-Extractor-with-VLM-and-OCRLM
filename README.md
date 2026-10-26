@@ -297,7 +297,6 @@ export GPU_GRES="gpu:A100:1,gpumem_per_gpu:70GB"
 export GPU_EXPECT=A100
 export GPU_MEMORY_MIB=71680
 
-sinfo -N -o '%N %G' | grep A100
 sbatch --test-only --partition=gpu-single --gres="$GPU_GRES" \
   slurm/check_environment.sbatch torch
 ```
