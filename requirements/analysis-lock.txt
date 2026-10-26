@@ -1,0 +1,6 @@
+# Tested CPU-only scientific-analysis environment; Python 3.12.
+# Inference CUDA/Paddle frameworks are intentionally excluded.
+numpy==2.3.5
+matplotlib==3.10.8
+PyYAML==6.0.3
+pandas==2.2.3
