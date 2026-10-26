@@ -5,6 +5,7 @@ import json
 import time
 
 from .dataset import image_for
+from .gpu_hardware import gpu_hardware
 from .layout import FORMAT, format_layout_json
 from .storage import key_for, read_json, write_json
 
@@ -57,6 +58,8 @@ def run_ocr(batch, engine="paddleocr"):
         if engine == "paddleocr_layout":
             index["format"] = FORMAT
 
+    # Record the preprocessing GPU, not just the later LM worker GPU.
+    index["gpu_hardware"] = gpu_hardware()
     pending = [
         record for record in records
         if key_for(record) not in index["records"]
