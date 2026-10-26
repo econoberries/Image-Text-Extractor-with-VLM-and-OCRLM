@@ -123,6 +123,8 @@ class InferenceAdapter:
         return {
             "gpu_names": [self.torch.cuda.get_device_name(i)
                           for i in range(self.torch.cuda.device_count())],
+            "gpu_memory_gib": [round(self.torch.cuda.get_device_properties(i).total_memory / 1024**3, 3)
+                               for i in range(self.torch.cuda.device_count())],
             "torch_version": self.torch.__version__,
             "transformers_version": transformers.__version__,
             "model_load_time_s": self.model_load_seconds,

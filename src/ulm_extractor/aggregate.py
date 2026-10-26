@@ -35,7 +35,7 @@ def run_summary(batch, spec):
         "experiment_id": spec["id"], "model": spec["checkpoint"],
         "model_revision": spec["revision"],
         "pipeline": spec["pipeline"], "ocr_engine": spec["ocr"],
-        "gpu_name": None, "status": state.get("status", "missing"),
+        "gpu_name": None, "gpu_memory_gib": None, "status": state.get("status", "missing"),
         "completed_documents": len(successful), "total_documents": 400,
         "official_kie_f1": None, "funsd_f1": None, "poie_f1": None,
         "receipt_f1": None, "sroie_f1": None,
@@ -62,6 +62,8 @@ def run_summary(batch, spec):
         meta = read_json(meta_path)
         row["gpu_name"] = ", ".join(meta.get("gpu_names", [])) or None
         row["model_load_time_s"] = meta.get("model_load_time_s")
+        memories = meta.get("gpu_memory_gib") or []
+        row["gpu_memory_gib"] = memories[0] if memories else None
     # A completed or previously failed scoring job can be reevaluated with the
     # same saved predictions, without rerunning GPU inference or changing UUIDs.
     if state.get("status") in {"completed", "scoring_failed", "scored"} and len(successful) == 400 and len(predicted) == 400:

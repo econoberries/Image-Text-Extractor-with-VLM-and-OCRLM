@@ -39,6 +39,20 @@ if [[ "$gpu_name" != *"$EXTRACTOR_EXPECT_GPU"* ]]; then
   exit 2
 fi
 
+# Reject GPU-family or memory mismatches *before* importing CUDA libraries.
+# Slurm's A100 request alone does not distinguish 40 GB from 80 GB.
+memory_mib="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | tr -d ' ')"
+required_mib="${EXTRACTOR_MIN_GPU_MEMORY_MIB:-0}"
+if ! [[ "$memory_mib" =~ ^[0-9]+$ && "$required_mib" =~ ^[0-9]+$ ]]; then
+  echo "Cannot parse allocated GPU VRAM or required memory threshold" >&2
+  exit 2
+fi
+if (( memory_mib < required_mib )); then
+  echo "GPU VRAM too small: allocated ${memory_mib} MiB; requires ${required_mib} MiB" >&2
+  exit 2
+fi
+echo "GPU VRAM check passed: ${memory_mib} MiB allocated >= ${required_mib} MiB required."
+
 export TOKENIZERS_PARALLELISM=false
 echo "SLURM worker action: $1; Python: $python_bin"
 exec "$python_bin" -m ulm_extractor.worker "$@"

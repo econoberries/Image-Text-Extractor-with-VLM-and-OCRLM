@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=ulm-env-check
 #SBATCH --partition=gpu-single
-#SBATCH --gres=gpu:A100:1
+#SBATCH --gres=gpu:A100:1,gpumem_per_gpu:70GB
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=00:20:00
+#SBATCH --time=00:45:00
 #SBATCH --output=gpu-check-%j.out
 
 # From repository root:
@@ -54,6 +54,13 @@ if ! nvidia-smi --query-gpu=name --format=csv,noheader | grep -qiF "$expected_gp
   exit 2
 fi
 echo "GPU family check: $expected_gpu"
+required_mib="${EXTRACTOR_MIN_GPU_MEMORY_MIB:-71680}"
+actual_mib="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | tr -d ' ')"
+if ! [[ "$required_mib" =~ ^[0-9]+$ && "$actual_mib" =~ ^[0-9]+$ ]] || (( actual_mib < required_mib )); then
+  echo "GPU memory check failed: allocated ${actual_mib} MiB; required ${required_mib} MiB" >&2
+  exit 2
+fi
+echo "GPU memory check passed: $actual_mib MiB"
 
 case "$1" in
   torch)

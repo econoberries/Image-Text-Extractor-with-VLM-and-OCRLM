@@ -34,6 +34,8 @@ def submit_batch(data, models, args):
         "evaluator": str(Path(args.evaluator).expanduser().resolve()),
         "output_root": str(outroot), "runs": runs,
         "gpu_family": args.gpu_family,
+        "gpu_gres": args.gres,
+        "min_gpu_memory_gib": getattr(args, "min_gpu_memory_gib", 0),
     }
     if not args.dry_run and not Path(spec["evaluator"]).is_file():
         raise FileNotFoundError(
@@ -52,11 +54,14 @@ def submit_batch(data, models, args):
                 "manifest_sha256": spec["manifest_sha256"],
                 "status": "submitted",
             })
+    min_memory = getattr(args, "min_gpu_memory_gib", 0)
+    if type(min_memory) is not int or min_memory < 0 or min_memory > 1000:
+        raise ValueError("--min-gpu-memory-gib must be a nonnegative integer")
     gpu_base = [
         "sbatch", "--parsable", "--partition", args.partition,
         "--gres", args.gres, "--cpus-per-task", str(args.cpus),
         "--mem", args.mem, "--time", args.time, "--nodes", "1",
-        "--export", f"ALL,EXTRACTOR_EXPECT_GPU={args.gpu_family}",
+        "--export", f"ALL,EXTRACTOR_EXPECT_GPU={args.gpu_family},EXTRACTOR_MIN_GPU_MEMORY_MIB={min_memory*1024}",
         "--chdir", str(ROOT),
     ]
     logpath = str(batchdir / "logs" / "%x-%j.out")

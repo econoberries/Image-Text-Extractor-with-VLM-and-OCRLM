@@ -150,11 +150,17 @@ def resume_batch(batch_path, args):
         else:
             ocr_needed.add(engine)
 
+    stored_gres = batch.get("gpu_gres")
+    requested_gres = getattr(args, "gres", None)
+    if stored_gres and requested_gres and requested_gres != stored_gres:
+        raise ValueError("Resume must use original batch GPU resource request: " + stored_gres)
+    gres = stored_gres or requested_gres or "gpu:A100:1"
+    memory_mib = int(batch.get("min_gpu_memory_gib", 0)) * 1024
     gpu_base = [
         "sbatch", "--parsable", "--partition", args.partition,
-        "--gres", args.gres, "--cpus-per-task", str(args.cpus),
+        "--gres", gres, "--cpus-per-task", str(args.cpus),
         "--mem", args.mem, "--time", args.time, "--nodes", "1",
-        "--export", f"ALL,EXTRACTOR_EXPECT_GPU={batch['gpu_family']}",
+        "--export", f"ALL,EXTRACTOR_EXPECT_GPU={batch['gpu_family']},EXTRACTOR_MIN_GPU_MEMORY_MIB={memory_mib}",
         "--chdir", str(ROOT),
     ]
     logpath = str(batchdir / "logs" / "%x-%j.out")
