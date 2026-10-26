@@ -25,14 +25,16 @@ def submit_batch(data, models, args):
     docspath = batchdir / "documents.json"
     specpath = batchdir / "batch.json"
     runs = [{**model, "run_id": str(uuid4())} for model in models]
-    # Save the exact repository commit used to submit these GPU experiments.
-    try:
-        code_revision = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=ROOT,
-            capture_output=True, text=True, check=True,
-        ).stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        code_revision = None
+    # A dry run must not execute external commands or write any metadata.
+    code_revision = None
+    if not args.dry_run:
+        try:
+            code_revision = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=ROOT,
+                capture_output=True, text=True, check=True,
+            ).stdout.strip()
+        except (OSError, subprocess.CalledProcessError):
+            pass
     spec = {
         "source_git_commit": code_revision,
         "batch_id": batch_id, "documents_file": str(docspath),
