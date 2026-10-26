@@ -79,7 +79,20 @@ def submit_batch(data, models, args):
     batcharg = str(specpath)
     jobs = {}
     def record_job(label, command):
-        job_id = _sbatch(command, args.dry_run)
+        try:
+            job_id = _sbatch(command, args.dry_run)
+        except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+            if not args.dry_run:
+                write_json(batchdir / "submission.json", {
+                    "status": "partial_failure", "batch_id": batch_id,
+                    "submitted_jobs": jobs, "error": str(exc),
+                })
+            raise RuntimeError(
+                f"Slurm submission stopped for batch {batch_id}. "
+                f"Accepted job IDs: {list(jobs.values())}. "
+                f"Check {batchdir / 'jobs.json'} before retrying. "
+                f"Original error: {exc}"
+            ) from exc
         jobs[label] = job_id
         if not args.dry_run:
             write_json(batchdir / "jobs.json", jobs)
