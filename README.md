@@ -4,7 +4,7 @@
 
 We wanted to find out whether it is better to give a document image directly to a vision-language model (VLM), or to first extract the text using OCR and then ask a language model (LM) to answer the same question. We built several versions of both approaches, ran them on the same documents, and compared extraction accuracy, processing time and compute requirements.
 
-This repository contains **the code needed to run our experiments on bwForCluster Helix**, use the official OCRBench v2 evaluator, and analyze a **new, matched six-model benchmark**. The previous exploratory results are **not** presented as results of this rerun. We will add the final measured values only after all six new jobs have finished.
+This repository contains **the code to run a six-model benchmark on bwForCluster Helix**, evaluate predictions with the official OCRBench v2 scorer, and calculate statistical comparisons. These instructions assume a first-time setup, with measured results to be added after the benchmark.
 
 **Start here:** this README contains the full workflow, from installation to Slurm submission, scoring, statistical analysis, and troubleshooting. The short README files inside individual folders only help with navigation.
 
@@ -39,7 +39,7 @@ We compare the following **six** setups. They all answer the **original, unchang
 
 Our **main comparison** is direct Qwen3.5 versus flat PaddleOCR → the *same* Qwen3.5 checkpoint. This comes closest to comparing the effect of the input pipeline while keeping the model fixed. Comparisons with MiniCPM and Qwen2.5 also change the underlying model.
 
-For the OCR pipelines, the LM never receives the original image. Flat OCR preserves recognized lines but does not explicitly retain positions; coordinate-aware OCR serializes each line, its pixel bounding box and confidence into JSON; PP-StructureV3 produces document-structure Markdown and recovers missing OCR text. The PP version used in this *new rerun* is the **recovered-Markdown v2** implementation; we do not rerun the historical uncorrected v1 in the main six-model batch.
+For the OCR pipelines, the LM never receives the original image. Flat OCR preserves recognized lines but does not explicitly retain positions; coordinate-aware OCR serializes each line, its pixel bounding box and confidence into JSON; PP-StructureV3 produces document-structure Markdown and recovers missing OCR text. The PP-Structure model in this benchmark uses **recovered Markdown** as its text representation.
 
 We did **not** train or fine-tune models. We use pretrained checkpoints and document their exact model revisions in `src/ulm_extractor/config.py`.
 
@@ -53,8 +53,8 @@ Image-Text-Extractor-with-VLM-and-OCRLM/
 ├── pyproject.toml                 ← Python package, dependencies and CLI
 ├── .python-version               ← Python version
 │
-├── model.yml                     ← All six models (use for the full rerun)
-├── model-baselines.yml           ← Only the original four models
+├── model.yml                     ← All six models (full benchmark)
+├── model-baselines.yml           ← Primary four-model comparison subset
 ├── model-laocr.yml               ← Only coordinate-aware OCR → Qwen
 ├── model-ppstructure.yml         ← Only recovered PP Markdown → Qwen
 │
@@ -137,7 +137,7 @@ The two flat OCR → LM models share one cached OCR extraction, so OCR is not ne
 
 ## 5. Set up the project on Helix
 
-The commands in Sections 5–8 are for the **Helix login node**, except where we explicitly use `sbatch`. Always run GPU workloads through Slurm, **not** directly on a login node.
+Sections 5–8 assume a fresh installation on the **Helix login node**. Submit GPU workloads through Slurm using `sbatch`; do **not** execute GPU inference directly on a login node.
 
 ### Step 5.1 — Check Helix access and clone the project
 
@@ -243,7 +243,7 @@ Both Git repositories are installed under `$HOME`, matching the evaluator path e
 
 ### Why we insist on the same A100 variant
 
-During our original exploration, some completed models landed on **A100 40 GB** and others on **A100 80 GB**. That makes processing-time comparisons harder to interpret fairly. For this fresh six-model benchmark we request **one A100 with at least 70 GB GPU memory for every GPU job**—the model jobs *and* all three OCR preprocessing jobs.
+To make processing-time comparisons fairer, we request **one A100 with at least 70 GB GPU memory for every GPU job**—both model inference and OCR preprocessing. Requesting only an A100 without specifying VRAM could allow different A100 variants across jobs.
 
 Helix's A100 nodes have 40 GB and 80 GB configurations. The Slurm request
 
@@ -334,7 +334,7 @@ These are **smoke tests**, not full evaluations; the model smoke test uses a red
 
 ### Step 7.1 — Check the complete Slurm submission first
 
-Run this from the **new repository root** after the smoke tests pass:
+Run this from the **repository root** after the smoke tests pass:
 
 ```bash
 .venv/bin/extractor benchmark \
@@ -486,7 +486,7 @@ The scoring scripts use saved model outputs from `predictions.json` and call the
 
 `inference_seconds` for an OCR pipeline is `ocr_seconds + lm_seconds`: an **estimated total component processing time**, not end-to-end elapsed wall time including Slurm scheduling, repeated cold starts and I/O. We should not call these controlled complete-system wall-clock measurements.
 
-For the fresh rerun we standardize on A100 80 GB to improve comparability, but different model checkpoints and OCR architectures still use resources differently. The comparisons remain descriptive: we do not estimate energy consumption, and available GPU VRAM is not the same as peak GPU memory used.
+We standardize on A100 80 GB to improve comparability, but different model checkpoints and OCR architectures still use resources differently. The comparisons remain descriptive: we do not estimate energy consumption, and available GPU VRAM is not the same as peak GPU memory used.
 
 ## 10. Paired bootstrap: statistical comparisons
 
@@ -514,7 +514,7 @@ We use two panels:
 - **Primary:** original four architectures, six model pairs, seed 2026.
 - **Expanded:** all six architectures, 15 model pairs, seed 2027.
 
-The original PP Markdown v1 is **not** part of this rerun; there is no v1-versus-v2 statistical comparison in the new six-model batch.
+The study compares only the **six pipelines in `model.yml`**. PP-Structure with text recovery is treated as one complete pipeline.
 
 A bootstrap resample is **not a new document**, and 10,000 resamples are not 10,000 independent observations. The intervals quantify document-resampling uncertainty conditional on OCRBench's benchmark composition. They **do not establish** out-of-domain generalization or GPU/nondeterministic decoding variance.
 
@@ -558,7 +558,7 @@ The finalizer checks:
 
 | File | Purpose |
 | --- | --- |
-| `primary_model_ci.csv` | Four original model means and confidence intervals |
+| `primary_model_ci.csv` | Four primary model means and confidence intervals |
 | `primary_paired_ci.csv` | Six paired four-model comparisons |
 | `six_model_ci.csv` | Six model means and confidence intervals |
 | `six_model_paired_ci.csv` | Fifteen six-model comparisons |
@@ -573,7 +573,7 @@ The script is deliberately **fail-closed**: if one GPU is wrong, scores are inco
 
 Before submission, keep the final `batch.json`, `documents.json`, per-run `predictions_scored.json`, `metrics.json`, OCR index files, the final analysis folder, and `git rev-parse HEAD` in a protected archive. Keep original predictions and intermediate OCR outputs when permissible. Avoid pushing OCRBench images/annotations into GitHub without reviewing the benchmark's redistribution terms.
 
-Once the new figures and tables are checked against the paper, we can publish those exact outputs, add a stable release tag, and replace the **pending** status with measured results in this README. **At present we have not submitted or scored the new rerun.**
+After the figures and tables are checked against the paper, we can publish the measured outputs and tag the released code version. **Benchmark results are currently pending.**
 
 ## 12. Troubleshooting
 
@@ -613,4 +613,4 @@ Important limitations remain even after standardizing hardware: the tested corpu
 
 **Project team:** Khaira Abdillah, Hengyi Liu, and Madeline Miller. See `CITATION.cff` for citation metadata. The team should agree on code licensing before publishing a reuse license; upstream datasets, models and dependencies retain their own licenses.
 
-_The source repo and earlier exploratory scores are preserved in [our original research repository](https://github.com/econoberries/ULM-Project-Extractor-VLM-OCRLM). They are not substituted for the results of this fresh controlled rerun._
+
