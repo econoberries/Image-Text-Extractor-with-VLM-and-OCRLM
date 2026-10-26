@@ -98,6 +98,12 @@ def submit_batch(data, models, args):
             write_json(batchdir / "jobs.json", jobs)
         return job_id
 
+    if not args.dry_run:
+        write_json(batchdir / "jobs.json", jobs)
+        write_json(batchdir / "submission.json", {
+            "status": "submitting", "batch_id": batch_id,
+            "submitted_jobs": jobs, "error": None,
+        })
     for engine, action, job_name in (
         ("paddleocr", "ocr", "ulm-ocr"),
         ("paddleocr_layout", "ocr-layout", "ulm-la-ocr"),
