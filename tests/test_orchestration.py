@@ -153,6 +153,33 @@ class ContractTests(unittest.TestCase):
         submit.assert_not_called()
         self.assertFalse((self.base / "runs").exists())
 
+    def test_partial_submission_records_accepted_job_ids(self):
+        import subprocess
+        data = load_documents(self.images)
+        failure = subprocess.CalledProcessError(1, ["sbatch"], stderr="Invalid account")
+        with patch("ulm_extractor.scheduler._sbatch",
+                   side_effect=["611", "612", failure]):
+            with self.assertRaisesRegex(RuntimeError, "Slurm submission stopped"):
+                submit_batch(data, load_config(self.yml), self.scheduler_args())
+        batches = list((self.base / "runs" / "batches").glob("*/submission.json"))
+        self.assertEqual(len(batches), 1)
+        receipt = read_json(batches[0])
+        saved_jobs = read_json(batches[0].parent / "jobs.json")
+        self.assertEqual(receipt["status"], "partial_failure")
+        self.assertEqual(receipt["submitted_jobs"], saved_jobs)
+        self.assertEqual(set(saved_jobs.values()), {"611", "612"})
+        self.assertNotIn("collector", saved_jobs)
+
+    def test_successful_submission_receipt_is_complete(self):
+        data = load_documents(self.images)
+        with patch("ulm_extractor.scheduler._sbatch",
+                   side_effect=["711", "712", "713", "714"]):
+            batch = submit_batch(data, load_config(self.yml), self.scheduler_args())
+        receipt = read_json(Path(batch["batch_path"]).parent / "submission.json")
+        self.assertEqual(receipt["status"], "complete")
+        self.assertEqual(receipt["submitted_jobs"]["collector"], "714")
+        self.assertEqual(len(receipt["submitted_jobs"]), 4)
+
     def test_dry_run_does_not_write_or_submit(self):
         data = load_documents(self.images)
         with patch("ulm_extractor.scheduler.subprocess.run", side_effect=AssertionError("sbatch called")):
