@@ -91,6 +91,14 @@ def resume_batch(batch_path, args):
     batchdir = outroot / "batches" / batch["batch_id"]
     if batch_path != (batchdir / "batch.json").resolve():
         raise ValueError("--batch must point to the original batch.json in its output directory")
+    submission_file = batchdir / "submission.json"
+    if submission_file.is_file():
+        receipt = read_json(submission_file)
+        if receipt.get("status") != "complete":
+            raise ValueError(
+                "Original batch submission was incomplete. Inspect jobs.json "
+                "and submission.json and reconcile Slurm jobs before resuming."
+            )
     documents = read_json(batch["documents_file"])
     if not isinstance(documents, list) or len(documents) != 400:
         raise ValueError("Original 400-document batch manifest is missing or incomplete")
