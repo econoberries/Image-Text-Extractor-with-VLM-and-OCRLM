@@ -1,19 +1,37 @@
-name: Python offline tests
+name: Offline tests and paper reproduction
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
-  unit-tests:
+  unit-tests-and-publication:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install lightweight orchestrator
-        run: python -m pip install -e .
-      - name: Validate SLURM test Bash syntax
-        run: bash -n slurm/check_environment.sbatch
-      - name: Run offline unit tests
+          cache: pip
+      - name: Install reproducible CPU analysis environment
+        run: |
+          python -m pip install -r requirements/analysis-lock.txt
+          python -m pip install -e .
+          python -m pip check
+      - name: Validate SLURM shell syntax
+        run: |
+          bash -n slurm/check_environment.sbatch
+          bash -n slurm/worker.sbatch
+          bash -n slurm/collector.sbatch
+      - name: Run all offline tests
         run: python -m unittest discover -s tests -v
+      - name: Validate exact seven-run score panel
+        run: python scripts/validate_final_results.py
+      - name: Reproduce all publication outputs from frozen scores
+        run: python scripts/build_final_results.py --out "$RUNNER_TEMP/ulm-paper-results" --draws 10000 --seed 2026
+      - name: Upload reproduced tables and figures
+        uses: actions/upload-artifact@v4
+        with:
+          name: publication-reproduction
+          path: ${{ runner.temp }}/ulm-paper-results/
+          retention-days: 30
