@@ -229,7 +229,7 @@ The Paddle GPU wheel is installed *last* within each Paddle environment. **Never
 
 ### Step 5.3 — Download OCRBench v2 and clone the official evaluator
 
-The benchmark dataset is **not included** in this GitHub repository. Download it from the authors' [OCRBench v2 dataset instructions](https://github.com/Yuliang-Liu/MultimodalOCR/blob/main/OCRBench_v2/README.md), extract the archive, and transfer the extracted folder to your Helix home directory using your institution's supported file-transfer method.
+The benchmark dataset is **not included** in this GitHub repository. Download it from the authors' [OCRBench v2 dataset instructions](https://github.com/Yuliang-Liu/MultimodalOCR/blob/main/OCRBench_v2/README.md), extract the archive, and upload the required data to Helix using your institution's supported file-transfer method. **This project uses only the English data:** you need `EN_part/` and the original `OCRBench_v2.json`; the Chinese image directory `CN_part/` is not used and does not need to be uploaded.
 
 The required directory structure is:
 
