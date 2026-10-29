@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from ulm_extractor.storage import write_json
 
@@ -75,6 +76,31 @@ class FinalizeTests(unittest.TestCase):
             self.assertTrue((out / "provenance.json").is_file())
             with self.assertRaises(FileExistsError):
                 finalizer.finalize(b, draws=150, seed=2026, figures=False)
+
+    def test_figure_uses_original_kie_score_scale(self):
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            self.skipTest("matplotlib is not installed")
+
+        models = [{
+            "dataset": "ALL", "experiment_id": "test_model",
+            "official_mean_score": 0.72, "ci_low": 0.68, "ci_high": 0.76,
+        }]
+        with tempfile.TemporaryDirectory() as temp:
+            figure_path = Path(temp) / "kie_scores.png"
+            # Keep the generated figure open long enough to inspect its axes.
+            with patch("matplotlib.pyplot.close"):
+                finalizer.make_figure(figure_path, models, [], "Test")
+                self.assertTrue(figure_path.is_file())
+                ax = plt.gcf().axes[0]
+                self.assertEqual(ax.get_xlabel(), "Mean KIE score (0–1)")
+                self.assertEqual(ax.get_xlim(), (0.0, 1.0))
+                self.assertAlmostEqual(float(ax.lines[0].get_xdata()[0]), 0.72)
+                interval = ax.collections[0].get_segments()[0]
+                self.assertAlmostEqual(float(interval[0][0]), 0.68)
+                self.assertAlmostEqual(float(interval[1][0]), 0.76)
+            plt.close("all")
 
     def test_fails_on_wrong_variant(self):
         with tempfile.TemporaryDirectory() as temp:
