@@ -131,7 +131,6 @@ def make_figure(path, models, pairs, label):
     ax.set_yticks(np.arange(len(scores)), [r["experiment_id"] for r in scores])
     ax.invert_yaxis()
     ax.set_xlabel("Mean KIE score (0–1)")
-    ax.set_xlim(0, 1)
     ax.set_title(f"{label}: 95% paired-stratified bootstrap intervals")
     ax.grid(axis="x", alpha=0.2)
     fig.tight_layout()
