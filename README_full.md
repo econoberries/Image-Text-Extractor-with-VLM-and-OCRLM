@@ -434,6 +434,21 @@ runs/
 └── benchmark_summary.csv         ← Convenience copy from most recent collector
 ```
 
+### When each result is generated
+
+**Nothing is automatically downloaded to your laptop.** All paths below are relative to the repository checkout on Helix. Each result appears at a different stage of the workflow:
+
+| README step / job | What it generates | Where to find it | When it is ready |
+| --- | --- | --- | --- |
+| **§7.2 — Submit the real benchmark** | Batch configuration, document manifest and Slurm job ledger | `runs/batches/<BATCH_ID>/batch.json`, `documents.json`, `jobs.json` | After successful submission; save the printed **Batch UUID** |
+| **§7.2–8.1 — Three OCR preprocessing jobs** | Flat OCR, layout-aware OCR and PP-Structure cache files | `runs/batches/<BATCH_ID>/ocr/paddleocr/`, `paddleocr_layout/`, `ppstructurev3/` | The corresponding OCR Slurm jobs must complete; each should have `index.json` with 400 records |
+| **§7.2–8.1 — Six inference jobs** | Individual model answers and timing records | `runs/<RUN_ID>/predictions.json` | Saved progressively as each model processes documents; check completion before treating them as final |
+| **§8.1 — CPU collector and official scoring** | Official item-level scores, run metrics, authoritative six-model summary | `runs/<RUN_ID>/predictions_scored.json`, `metrics.json`, `runs/batches/<BATCH_ID>/benchmark_summary.csv` | After the collector completes successfully and the summary shows six `status=scored` rows with `completed_documents=400` |
+| **§11.2 — Statistical finalizer** | Bootstrap confidence intervals, paired comparisons, efficiency table, figures and reproducibility provenance | `runs/analysis/<BATCH_ID>/` | Only after running `scripts/finalize_benchmark.py` on a complete scored batch |
+| **§11.3 — Archive and download** | Compressed copy for local analysis | `$HOME/ocrbench_<BATCH_ID>_results.tar.gz` on Helix, then your chosen Mac directory | Only when you manually archive and transfer the finished results |
+
+The **`BATCH_ID`** is printed by `extractor benchmark` at §7.2. The six **`RUN_ID`** values are given in the `run_id` column of the batch-specific summary after the collector finishes. The statistical finalizer does **not** re-run the models; it analyzes saved official scores. The archive step does **not** regenerate or rescore predictions.
+
 ### Where to find the finished results
 
 Every real benchmark submission prints a **Batch UUID**. Use *your* batch UUID in the paths below; another person's batch ID will not exist in your own checkout.
