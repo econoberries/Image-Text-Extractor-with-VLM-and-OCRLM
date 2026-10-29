@@ -22,6 +22,10 @@ _BOOTSTRAP = importlib.util.spec_from_file_location("bootstrap_kie", ROOT / "scr
 bootstrap = importlib.util.module_from_spec(_BOOTSTRAP)
 _BOOTSTRAP.loader.exec_module(bootstrap)
 
+_ERROR_ANALYSIS = importlib.util.spec_from_file_location("kie_error_analysis", ROOT / "scripts" / "kie_error_analysis.py")
+error_analysis = importlib.util.module_from_spec(_ERROR_ANALYSIS)
+_ERROR_ANALYSIS.loader.exec_module(error_analysis)
+
 PRIMARY = ("qwen35_vlm", "minicpm_vlm", "qwen35_ocr", "qwen25_ocr")
 EXTENDED = (*PRIMARY, "qwen35_laocr", "qwen35_ppstructure")
 ENGINES = ("paddleocr", "paddleocr_layout", "ppstructurev3")
@@ -185,6 +189,7 @@ def finalize(batch_path, output=None, draws=10000, seed=2026, figures=True):
     if figures:
         make_figure(out / "figure_primary.png", primary_models, primary_pairs, "Original four")
         make_figure(out / "figure_six_models.png", six_models, six_pairs, "All six")
+    error_analysis.make_reports(batch_path, out)
     print(f"Validated six A100 80GB-model runs and three A100 80GB OCR caches.")
     print(f"Finished {draws} paired bootstrap draws per panel. Results: {out}")
     return out
