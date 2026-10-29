@@ -65,13 +65,28 @@ The experiment runs on a Slurm GPU cluster with Python 3.12. PyTorch and PaddleP
   --batch runs/batches/<BATCH_ID>/batch.json --n-bootstrap 10000 --seed 2026
 ```
 
-## Where the results are
+## When and where the outputs are generated
 
-| Path | Contents |
-| --- | --- |
-| `runs/batches/<BATCH_ID>/benchmark_summary.csv` | **Start here:** one row per model with scores, timing and hardware |
-| `runs/<RUN_ID>/` | Each model's predictions, official per-item scores and metrics |
-| `runs/analysis/<BATCH_ID>/` | Bootstrap CIs (`six_model_ci.csv`, `six_model_paired_ci.csv`), `efficiency.csv`, figures, `provenance.json` |
+The outputs are written **on Helix**, in the repository's `runs/` directory. They are generated during these steps; they are **not included in GitHub** and are not downloaded to your computer automatically.
+
+| Step | When the file appears | Output to look for |
+| --- | --- | --- |
+| **Benchmark submission** (full guide §7.2) | Immediately after submitting the real batch | `runs/batches/<BATCH_ID>/batch.json` and `jobs.json`; the command prints your **Batch UUID** |
+| **Three OCR jobs** (§7.2–8.1) | As OCR preprocessing completes | `runs/batches/<BATCH_ID>/ocr/<OCR_ENGINE>/index.json` and cached OCR results |
+| **Six model jobs** (§7.2–8.1) | Predictions are saved as inference progresses | `runs/<RUN_ID>/predictions.json` |
+| **CPU scoring collector** (§8.1) | After the model jobs finish and scoring succeeds | `runs/<RUN_ID>/predictions_scored.json`, `metrics.json`, and `runs/batches/<BATCH_ID>/benchmark_summary.csv` |
+| **Statistical finalizer** (§11.2) | After running `scripts/finalize_benchmark.py` on six scored runs | `runs/analysis/<BATCH_ID>/`: confidence-interval CSVs, paired comparisons, `efficiency.csv`, figures, and `provenance.json` |
+| **Archive and download** (§11.3) | Only when you explicitly create and transfer the archive | A local copy of the batch, six runs and analysis; follow [README_full.md §11.3](README_full.md#step-113--freeze-what-we-actually-ran) |
+
+To find **your own** results, copy the **Batch UUID printed by the real benchmark command** (not from someone else's example), then run from the repository root on Helix:
+
+```bash
+BATCH_ID="PASTE_YOUR_BATCH_UUID_HERE"
+cat "runs/batches/$BATCH_ID/benchmark_summary.csv"  # Available after collector scoring
+ls "runs/analysis/$BATCH_ID/"                        # Available after §11.2
+```
+
+The six `RUN_ID` values are in the summary CSV's `run_id` column. They name the six individual folders directly under `runs/`. For a complete folder-by-folder explanation and Helix-to-Mac download instructions, see [README_full.md §8 and §11.3](README_full.md#8-monitor-recover-and-score).
 
 ## Limitations
 
