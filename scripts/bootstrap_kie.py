@@ -25,6 +25,8 @@ from uuid import uuid4
 
 import numpy as np
 
+from ulm_extractor.storage import key_for
+
 BASELINES = ("qwen35_vlm", "minicpm_vlm", "qwen35_ocr", "qwen25_ocr")
 DATASETS = ("FUNSD", "POIE", "Receipt", "SROIE")
 EXPECTED_COUNTS = {"FUNSD": 48, "POIE": 177, "Receipt": 25, "SROIE": 150}
@@ -252,7 +254,7 @@ def make_results(ids, docs, scores, requested, draws=10000, seed=2026,
     aligned = []
     for i, row in enumerate(docs):
         aligned.append({
-            "document_key": row.get("document_key", ""),
+            "document_key": key_for(row),
             "dataset_name": str(row["dataset_name"]),
             "id": str(row["id"]),
             "image_path": str(row["image_path"]),
