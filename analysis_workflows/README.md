@@ -41,6 +41,24 @@ The 16 deliberately selected examples are saved in `runs/analysis/layout_case_re
 
 Do not commit benchmark images, raw OCR text, references, raw predictions, dataset content, or full run archives to public GitHub. Keep those under `runs/` or share privately under the benchmark's redistribution terms.
 
+## Qualitative case reproduction
+
+The frozen 16-case selection, manually reviewed notes and read-only reproduction scripts are documented in [qualitative/README.md](qualitative/README.md).
+
+- Generate a Markdown report from saved official scores and manual notes:
+
+```bash
+.venv-analysis/bin/python analysis_workflows/qualitative/build_case_report.py
+```
+
+- Optionally reconstruct private OCR/prediction evidence in a fresh ignored folder:
+
+```bash
+.venv-analysis/bin/python analysis_workflows/qualitative/export_cases.py --include-images
+```
+
+These scripts do not alter the original 16-case archive, official scores, or benchmark code. Never commit reconstructed evidence or original benchmark images.
+
 ## Scope
 
 The analysis tools and documentation are independent of `src/`, `scripts/finalize_benchmark.py`, and `scripts/bootstrap_kie.py`. No existing source file, scoring code, or model configuration is changed by this folder.
