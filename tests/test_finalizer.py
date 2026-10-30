@@ -27,6 +27,7 @@ class FinalizeTests(unittest.TestCase):
                     "dataset_name": dataset, "id": str(len(docs)+900),
                     "image_path": f"OCRBench_v2/EN_part/{dataset}/{i}.png",
                     "question": f"Extract {i} from {dataset}",
+                    "answers": ['{"field": "value"}'],
                 })
         write_json(batchdir / "documents.json", docs)
         specs = []
