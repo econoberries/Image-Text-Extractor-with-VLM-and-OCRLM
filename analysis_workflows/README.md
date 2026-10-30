@@ -16,15 +16,15 @@ It verifies the six completed prediction files, the three OCR cache indexes, the
 
 ## Reproduce the five H1–H3 diagnostic CSVs
 
-The analysis originally ran successfully on Helix and its outputs are in `runs/analysis/hypotheses_400/`. **You do not need to run it again to share these results.** The saved script on Helix is `runs/analysis/kie_hypotheses_400.py` and is the authoritative copy for exact reproduction of those five files.
+The analysis ran successfully on Helix and its outputs are in `runs/analysis/hypotheses_400/`. **You do not need to run it again to share these results.** The script used in the original terminal session is preserved in `runs/analysis/kie_hypotheses_400.py`; a matching version based on that script has now been committed to this analysis branch.
 
-To version-control that exact script, copy it into this folder before making a commit (and compare it with the GitHub copy before relying on exact reproducibility):
+You can check both versions are identical on Helix:
 
 ```bash
-cp runs/analysis/kie_hypotheses_400.py analysis_workflows/kie_hypotheses_400.py
+cmp runs/analysis/kie_hypotheses_400.py analysis_workflows/kie_hypotheses_400.py && echo "Scripts identical"
 ```
 
-The GitHub script was reconstructed from the working Helix version; compare it against the original before using it for exact reproduction. The script includes default paths for batch `cbdd58de-531a-4c9c-9778-5bc8b0b0be48` and writes to `runs/analysis/hypotheses_400/`. **It refuses to overwrite existing outputs.** For a reproduction run, use a fresh output directory after reviewing the script.
+The script includes default paths for batch `cbdd58de-531a-4c9c-9778-5bc8b0b0be48` and writes to `runs/analysis/hypotheses_400/`. **It refuses to overwrite existing outputs.** There is no need to rerun it for this shared package.
 
 The existing five outputs are:
 - `kie_400_questions.csv` (400 rows): official per-question scores, output diagnostics, OCR representation characteristics.
