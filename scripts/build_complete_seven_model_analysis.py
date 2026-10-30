@@ -455,6 +455,31 @@ def main():
         spatial_text = folders[SPATIAL] / "spatial_text" / f"{key}.txt"
         if spatial_text.is_file():
             shutil.copy2(spatial_text, case_folder / "spatial_text.txt")
+        # Save the exact previously cached OCR inputs for close reading, no new OCR.
+        for engine in ("paddleocr", "paddleocr_layout", "ppstructurev3"):
+            index_path = batch_path.parent / "ocr" / engine / "index.json"
+            if not index_path.is_file():
+                continue
+            ocr_index = read_json(index_path)
+            if ocr_index.get("manifest_sha256") != batch["manifest_sha256"]:
+                raise ValueError(f"Cache manifest mismatch for {engine}")
+            cache_entry = ocr_index.get("records", {}).get(key, {})
+            for source_field in ("text_path", "raw_path", "markdown_path", "json_path"):
+                value = cache_entry.get(source_field)
+                if not isinstance(value, str) or not value:
+                    continue
+                candidate = Path(value)
+                original = next(
+                    (p for p in (candidate, ROOT / candidate, batch_path.parent / candidate)
+                     if p.is_file()), None
+                )
+                if original is None or original.suffix.lower() not in (".txt", ".md", ".json"):
+                    continue
+                if original.stat().st_size > 5_000_000:
+                    continue
+                input_dir = case_folder / "ocr_inputs"
+                input_dir.mkdir(exist_ok=True)
+                shutil.copy2(original, input_dir / f"{engine}_{source_field}{original.suffix.lower()}")
         if args.image_root:
             root = args.image_root.expanduser().resolve()
             original = Path(str(doc["image_path"]))
@@ -546,6 +571,43 @@ def main():
         "Do not publicly commit or publish these raw scored predictions or dataset images without permission.",
     ]
     (out / "README.md").write_text("\n".join(report) + "\n", encoding="utf-8")
+    # Static, locally browsable visual report; no external links or scripting.
+    from html import escape
+    tr = lambda cells: "<tr>" + "".join("<td>" + escape(str(x)) + "</td>" for x in cells) + "</tr>"
+    hrows = "\n".join(tr([r["model"], f"{r['official_mean_score']:.4f}",
+                             r["zero_score_count"], r["perfect_score_count"]]) for r in overall)
+    links = "\n".join(
+        f'<li><a href="qualitative_16_cases/{escape((cases_dir / ("case_" + str(k).zfill(2) + "_" + docs[i]["dataset_name"] + "_" + re.sub(r"[^a-zA-Z0-9_-]+", "_", str(docs[i]["id"]))[:40]) / "review.md").relative_to(cases_dir).as_posix())}">'
+        f'Case {k}: {escape(str(docs[i]["dataset_name"]))} #{escape(str(docs[i]["id"]))}</a> — {escape(reason)}</li>'
+        for k, (i, reason) in enumerate(selected, 1)
+    )
+    chart_html = "\n".join(
+        f'<figure><img src="figures/{escape(p.name)}" alt="{escape(p.stem)}"><figcaption>{escape(p.stem.replace("_", " "))}</figcaption></figure>'
+        for p in sorted(figures.glob("*.png"))
+    )
+    (out / "INDEX.html").write_text(
+        '<!doctype html><html lang="en"><meta charset="utf-8"><title>ULM KIE Complete Analysis</title>'
+        '<style>body{font:16px system-ui,sans-serif;max-width:1080px;margin:40px auto;padding:0 20px;'
+        'line-height:1.55;color:#222}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ddd;'
+        'padding:8px;text-align:left}figure{margin:30px 0}img{max-width:100%;height:auto;border:1px solid #ddd}'
+        'a{color:#175a93}small{color:#555}</style>'
+        f'<h1>Seven-model OCRBench v2 KIE analysis</h1><p>Batch: {escape(batch["batch_id"])} — '
+        '400 English KIE questions, 16 purposively chosen case reviews.</p>'
+        '<p><strong>Method:</strong> reuse saved official predictions and scores; no new GPU inference. '
+        'Spatial OCR timing is a sum of reused OCR and freshly measured LM components, not end-to-end wall time.</p>'
+        '<h2>Official model means</h2><table><tr><th>Model</th><th>Mean</th><th>Zero scores</th>'
+        f'<th>Perfect scores</th></tr>{hrows}</table>'
+        '<h2>Figures</h2>' + chart_html +
+        '<h2>Qualitative cases</h2><p>Diagnostic, nonrepresentative selection. Human interpretation is required.</p>'
+        f'<ol>{links}</ol><h2>Data files</h2>'
+        '<p>See <a href="README.md">README</a>, <a href="tables/seven_model_bootstrap_ci.csv">model confidence intervals</a>, '
+        '<a href="tables/seven_model_paired_bootstrap_ci.csv">pairwise intervals</a>, '
+        '<a href="tables/qualitative_field_diagnostics.csv">field diagnostics</a>, '
+        '<a href="tables/seven_model_document_scores.csv">all 400 matched scores</a>, '
+        'and <a href="provenance/manifest.json">provenance</a>.</p>'
+        '<small>Raw predictions and any images are intended only for authorized collaborators.</small></html>',
+        encoding="utf-8",
+    )
     checksums = [
         {"file": str(file.relative_to(out)), "bytes": file.stat().st_size, "sha256": digest(file)}
         for file in sorted(out.rglob("*")) if file.is_file()
