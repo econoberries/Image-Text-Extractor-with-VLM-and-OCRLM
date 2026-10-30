@@ -1,10 +1,3 @@
-#!/usr/bin/env python3
-"""Read-only, six-model, 400-question KIE hypothesis analysis.
-
-This script is independent of the benchmark scoring/bootstrap code.
-It reads saved scored predictions and three OCR caches; it does not
-rerun inference, OCR or official evaluation. Existing output is protected.
-"""
 import ast
 import csv
 import json
@@ -64,7 +57,7 @@ def parse_reference(doc):
 def parse_prediction(raw):
     if not isinstance(raw, str):
         return {}, "unparseable"
-    match = re.search(r"[\x60]{3}(?:python|json)?\n(.*?)\n[\x60]{3}", raw, re.S | re.I)
+    match = re.search(r"```(?:python|json)?\n(.*?)\n```", raw, re.S | re.I)
     value = match.group(1) if match else raw.strip()
     try:
         data = json.loads(value)
