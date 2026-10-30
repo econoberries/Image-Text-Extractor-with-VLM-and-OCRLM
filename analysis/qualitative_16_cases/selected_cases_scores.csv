@@ -1,0 +1,17 @@
+case_number,selection_reason,document_key,dataset,id,image_path,qwen35_vlm_score,minicpm_vlm_score,qwen35_ocr_score,qwen25_ocr_score,qwen35_laocr_score,qwen35_ppstructure_score,qwen35_spatial_ocr_score
+1,spatial_gain_vs_flat,d1b94ab35bf0a9e7df14ce71,FUNSD,1044,EN_part/kie_funsd/87093315_87093318.png,0.8888888888888888,0.23333333333333334,0.43333333333333335,0.6296296296296297,0.37037037037037035,0.6296296296296297,0.8148148148148148
+2,spatial_loss_vs_flat,615e795b4c385dd748dbaea7,FUNSD,1023,EN_part/funsd_test_images/83641919_1921.png,1.0,0.6666666666666666,1.0,1.0,1.0,0.6666666666666666,0.6666666666666666
+3,spatial_vs_layout_divergence,c0aa572f128e2b982bdec1a3,FUNSD,1212,EN_part/kie_funsd/83443897.png,0.6,0.0,0.6,0.5555555555555556,0.0,0.5,0.6
+4,spatial_vs_pp_and_model_divergence,51d510381fb46e34dd348ee5,FUNSD,932,EN_part/kie_funsd/82837252.png,1.0,0.0,1.0,1.0,1.0,0.6,1.0
+5,spatial_gain_vs_flat,093dd24b95bbb071a2607dbe,POIE,917,EN_part/poie_test_images/UK_466.jpg,0.8181818181818182,0.0,0.09090909090909091,0.7272727272727273,0.8181818181818182,0.5454545454545454,0.7272727272727273
+6,spatial_loss_vs_flat,c200ca55afc42ddfe5806665,POIE,1169,EN_part/kie_poie/NZL_9.jpg,1.0,0.9375,0.8125,0.625,0.5625,1.0,0.3125
+7,spatial_vs_layout_divergence,e421901a5c44c8c62f0808cf,POIE,1256,EN_part/poie_test_images/nf2356.jpg,1.0,1.0,1.0,0.7142857142857143,0.0,1.0,1.0
+8,spatial_vs_pp_and_model_divergence,3fc7b25fafa445ef16521f3b,POIE,934,EN_part/poie_test_images/GOG_113.jpg,0.0,0.25,1.0,0.0,0.0,0.0,1.0
+9,spatial_gain_vs_flat,1d52e6851151297b00085a84,Receipt,1009,EN_part/receipt_test_images/0020.jpeg,0.75,0.5,0.5,0.75,0.75,0.75,1.0
+10,spatial_loss_vs_flat,35ad44d090bcbdebbd75315c,Receipt,1057,EN_part/receipt_test_images/0017.jpeg,0.75,0.75,0.75,0.75,0.75,0.75,0.5
+11,spatial_vs_layout_divergence,56f9fab5db195e31259ba9cf,Receipt,1114,EN_part/receipt_test_images/0022.jpeg,0.75,0.75,0.75,1.0,1.0,1.0,0.75
+12,spatial_vs_pp_and_model_divergence,39e25fa9cbce2868da3c16ea,Receipt,1200,EN_part/receipt_test_images/0009.jpeg,1.0,0.75,1.0,0.75,1.0,0.75,1.0
+13,spatial_gain_vs_flat,9f01f9540c91e8d4d306432c,SROIE,999,EN_part/kie_sroie/X51005447844.jpg,0.25,0.25,0.0,0.0,0.0,0.5,0.5
+14,spatial_loss_vs_flat,1227f118745e2315d70a0778,SROIE,979,EN_part/kie_sroie/X51007231346.jpg,1.0,1.0,1.0,0.25,0.75,0.5,0.5
+15,spatial_vs_layout_divergence,da936aab012e35d17c38256c,SROIE,1077,EN_part/kie_sroie/X51006619790.jpg,1.0,0.75,0.5,0.25,0.75,0.5,0.25
+16,spatial_vs_pp_and_model_divergence,f0b57d2b0924bec0ba322540,SROIE,1035,EN_part/kie_sroie/X51006619506.jpg,1.0,0.25,0.75,0.75,0.5,0.25,0.75
