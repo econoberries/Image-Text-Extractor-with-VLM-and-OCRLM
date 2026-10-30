@@ -42,7 +42,7 @@ class SpatialOCRTests(unittest.TestCase):
             docs = [
                 {"id": i, "dataset_name": "FUNSD", "image_path": f"EN_part/{i}.png",
                  "question": "Extract field", "answers": ["x"]}
-                for i in (1, 2)
+                for i in range(400)
             ]
             layout_records, flat_records = {}, {}
             for doc in docs:
@@ -53,7 +53,7 @@ class SpatialOCRTests(unittest.TestCase):
                     "format": "paddleocr-layout-v1",
                     "lines": [line("A", 10, 10, 20, 20)],
                 })
-                flat_text.write_text("different" if doc["id"] == 2 else "A", encoding="utf-8")
+                flat_text.write_text("different" if doc["id"] == 399 else "A", encoding="utf-8")
                 layout_records[key] = {"text_path": str(layout_text), "ocr_seconds": 0.2}
                 flat_records[key] = {"text_path": str(flat_text), "ocr_seconds": 0.2}
             batch = {"batch_id": "test-batch", "manifest_sha256": "a" * 64}
@@ -66,9 +66,8 @@ class SpatialOCRTests(unittest.TestCase):
             })
             output = root / "runs/analysis/spatial_ocr_lm_test-batch"
             with patch.object(spatial, "ROOT", root):
-                # This calls the same entrypoint the 400-case CLI calls after validation.
-                # The mock has two cases, so it will fail at the cache completeness check.
-                with self.assertRaisesRegex(ValueError, "not complete"):
+                # The cache has all 400 items, but one recognition differs.
+                with self.assertRaisesRegex(ValueError, "recognized text differs"):
                     spatial.prepare(batch, batch_dir / "batch.json", docs, output)
             self.assertFalse(output.exists())
 
