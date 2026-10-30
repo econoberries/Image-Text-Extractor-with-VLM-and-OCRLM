@@ -3,7 +3,6 @@ import csv
 import json
 import re
 from pathlib import Path
-
 from ulm_extractor.storage import key_for
 
 batch_id = "cbdd58de-531a-4c9c-9778-5bc8b0b0be48"
