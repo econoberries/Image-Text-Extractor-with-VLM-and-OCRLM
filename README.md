@@ -1,13 +1,16 @@
-# Comparing Vision-Language Models and OCR → Language-Model Pipelines
+# Vision-Language Models (VLM) vs. OCR-LM Pipelines for Key Information Extraction
 
 **OCRBench v2 English Key Information Extraction (KIE)**
 
-Is it better to give a document image directly to a vision-language model (VLM), or to first extract the text with OCR and then ask a language model (LM) the same question? We run both approaches on the same 400 documents and compare extraction accuracy, processing time and compute requirements.
+This repository contains the code for our course project, which investigates whether structured information extraction from images can be performed more efficiently, in terms of time and computational cost, with low-resource open-source vision-language models (VLMs) or with pipelines that combine optical character recognition (OCR) and a language model (OCR-LM). Both approaches are evaluated on the same 400 English KIE questions from OCRBench v2 and compared on extraction accuracy, processing time and GPU memory. We test three hypotheses: (1) larger models achieve higher accuracy, (2) VLM and OCR-LM approaches do not differ significantly in accuracy, and (3) OCR-LM pipelines have lower computational costs.
 
+This repository is an integrated version of our original development repository [econoberries/ULM-VLM-OCR-IE](https://github.com/econoberries/ULM-VLM-OCR-IE), where we first developed and tested the individual pipelines. It documents our working process and preliminary runs.
+
+To compare all approaches fairly, we brought the pipelines together here in a single evaluation framework. All six pipelines run in one batch on the same 400 English OCRBench v2 questions, with the same unmodified questions, GPU type, and official OCRBench v2 scorer. In this process, some implementation details were standardized across pipelines. The results reported in this repository are therefore our final results, while the preliminary runs in the development repository used earlier settings.
 
 ## The six setups
 
-Every setup answers the **original, unchanged** OCRBench question. No model is trained or fine-tuned; checkpoints are pinned in `src/ulm_extractor/config.py`.
+Every setup answers the **original, unchanged** OCRBench question. No model is trained or fine-tuned, and the exact model versions are pinned in `src/ulm_extractor/config.py`.
 
 | ID | Model input | Model |
 | --- | --- | --- |
@@ -18,9 +21,9 @@ Every setup answers the **original, unchanged** OCRBench question. No model is t
 | `qwen35_laocr` | PaddleOCR text **with bounding boxes** (JSON) + question | Qwen3.5-9B |
 | `qwen35_ppstructure` | PP-StructureV3 Markdown with OCR text recovery + question | Qwen3.5-9B |
 
-The **main comparison** is `qwen35_vlm` vs. `qwen35_ocr`: same model, different input. The other setups change the model or the kind of OCR input.
+The **main comparison** is `qwen35_vlm` vs. `qwen35_ocr`, which use the same model with different input. The other setups change the model or the kind of OCR input.
 
-**Optional seventh comparison:** Spatial OCR–LM (`qwen35_spatial_ocr`) is kept separate from the original six-model benchmark. See the [spatial experiment instructions](https://github.com/econoberries/Image-Text-Extractor-with-VLM-and-OCRLM/blob/experiment/spatial-ocr-lm/experiments/README.md) to reuse the saved OCR caches, produce its official scores, and compare them with the six scored models on the same 400 questions.
+An **optional seventh comparison**, Spatial OCR–LM (`qwen35_spatial_ocr`), is kept separate from the original six-model benchmark. See the [spatial experiment instructions](https://github.com/econoberries/Image-Text-Extractor-with-VLM-and-OCRLM/blob/experiment/spatial-ocr-lm/experiments/README.md) to reuse the saved OCR caches, produce its official scores, and compare them with the six scored models on the same 400 questions.
 
 ## Dataset and evaluation
 
@@ -87,8 +90,8 @@ For **when each output is generated**, how to find your batch and run IDs, and w
 
 ## References
 
-- [OCRBench v2: data, code and official evaluator](https://github.com/Yuliang-Liu/MultimodalOCR) · [paper](https://proceedings.neurips.cc/paper_files/paper/2025/hash/8c2e6bb15be1894b8fb4e0f9bcad1739-Abstract-Datasets_and_Benchmarks_Track.html)
-- [PaddleOCR documentation](https://www.paddleocr.ai/latest/en/index.html)
-
-
-
+- [OCRBench v2](https://github.com/Yuliang-Liu/MultimodalOCR)
+- [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)
+- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B)
+- [MiniCPM-V 4.6](https://github.com/OpenBMB/MiniCPM-V)
+- [Qwen2.5-14B-Instruct-1M](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-1M)
