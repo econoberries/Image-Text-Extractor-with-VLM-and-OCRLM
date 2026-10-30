@@ -29,6 +29,10 @@ jobs:
         run: |
           python scripts/bootstrap_kie.py --help
           python scripts/finalize_benchmark.py --help
+      - name: Compile and inspect complete seven-model analysis entry point
+        run: |
+          python -m py_compile scripts/build_complete_seven_model_analysis.py
+          python scripts/build_complete_seven_model_analysis.py --help
       - name: Validate frozen full-run model configuration
         run: |
           python -c "from ulm_extractor.config import load_config; assert len(load_config('model.yml')) == 6"
