@@ -308,13 +308,11 @@ def score(batch, batch_path, docs, folder, draws):
         original = next(m for m in batch["runs"] if m["id"] == name)
         sources[name] = (batch_path.parents[2] /
                          original["run_id"] / "predictions_scored.json")
-    scores = {
-        name: __import__("numpy").array(
-            [module.read_scored(path, expected)[key] for key in aligned_ids],
-            dtype=float
-        )
-        for name, path in sources.items()
-    }
+    import numpy as np
+    scores = {}
+    for name, path in sources.items():
+        scored = module.read_scored(path, expected)
+        scores[name] = np.asarray([scored[key] for key in aligned_ids], dtype=float)
     models, pairs, aligned = module.make_results(
         aligned_ids, docs, scores, NEW_MODELS,
         draws=draws, seed=2026, confidence=0.95, stratified=True,
