@@ -577,9 +577,9 @@ def main():
     hrows = "\n".join(tr([r["model"], f"{r['official_mean_score']:.4f}",
                              r["zero_score_count"], r["perfect_score_count"]]) for r in overall)
     links = "\n".join(
-        f'<li><a href="qualitative_16_cases/{escape((cases_dir / ("case_" + str(k).zfill(2) + "_" + docs[i]["dataset_name"] + "_" + re.sub(r"[^a-zA-Z0-9_-]+", "_", str(docs[i]["id"]))[:40]) / "review.md").relative_to(cases_dir).as_posix())}">'
-        f'Case {k}: {escape(str(docs[i]["dataset_name"]))} #{escape(str(docs[i]["id"]))}</a> — {escape(reason)}</li>'
-        for k, (i, reason) in enumerate(selected, 1)
+        f'<li><a href="{escape((Path("qualitative_16_cases") / case.name / "review.md").as_posix())}">'
+        f'{escape(case.name)}</a></li>'
+        for case in sorted(cases_dir.iterdir()) if case.is_dir()
     )
     chart_html = "\n".join(
         f'<figure><img src="figures/{escape(p.name)}" alt="{escape(p.stem)}"><figcaption>{escape(p.stem.replace("_", " "))}</figcaption></figure>'
