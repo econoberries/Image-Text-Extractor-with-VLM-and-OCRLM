@@ -59,6 +59,23 @@ The frozen 16-case selection, manually reviewed notes and read-only reproduction
 
 These scripts do not alter the original 16-case archive, official scores, or benchmark code. Never commit reconstructed evidence or original benchmark images.
 
+## Downloadable full-analysis package (private)
+
+After generating the six team figures, bundle the existing corrected bootstrap
+CSV tables, all 400-question diagnostic tables, eight PNG figures, the 16-case
+qualitative summary, and reproducibility scripts into one ZIP:
+
+```bash
+.venv-analysis/bin/python analysis_workflows/package_existing_analysis.py
+```
+
+The script checks all required inputs, never recomputes scores, and writes a
+new timestamped ZIP under `runs/analysis/packages/`, which Git ignores. It
+also includes a README and a SHA256 manifest. The ZIP contains detailed
+question/field-level analysis and is **private/team-only**; do not upload it
+to public GitHub. It explicitly excludes raw benchmark document images, OCR
+caches, raw scored prediction JSON, and full run archives.
+
 ## Scope
 
 The analysis tools and documentation are independent of `src/`, `scripts/finalize_benchmark.py`, and `scripts/bootstrap_kie.py`. No existing source file, scoring code, or model configuration is changed by this folder.
