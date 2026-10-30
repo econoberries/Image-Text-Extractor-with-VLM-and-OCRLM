@@ -42,13 +42,13 @@ After checking the preview, generate the full folder and its shareable ZIP:
   --n-bootstrap 10000 --seed 2026
 ```
 
-The output folder and the ZIP with the **same timestamp** appear in `runs/analysis/`. Look for `ULM_KIE_Full_Analysis_*.zip` beside the folder.
+The output folder and the ZIP with the **same timestamp** appear in `runs/analysis/`. Open `INDEX.html` after unzipping to browse the charts, scores and links to the 16 case reviews. Look for `ULM_KIE_Full_Analysis_*.zip` beside the folder.
 
 ## Folder structure
 
 ```text
 ULM_KIE_Full_Analysis_YYYYMMDD_HHMMSSZ/
-├── README.md                         Human-readable seven-model summary
+├── INDEX.html                        Open this first: browsable charts, table and case links\n├── README.md                         Human-readable seven-model summary
 ├── model_runs/                       Seven complete scored run snapshots
 │   ├── qwen35_vlm/
 │   ├── minicpm_vlm/
@@ -72,7 +72,7 @@ ULM_KIE_Full_Analysis_YYYYMMDD_HHMMSSZ/
 │   └── case_XX_<dataset>_<id>/
 │       ├── case.json                 Seven predictions, official scores, gold
 │       ├── review.md                 Detailed manual-review checklist
-│       ├── spatial_text.txt          If saved spatial text is available
+│       ├── spatial_text.txt          If saved spatial text is available\n│       ├── ocr_inputs/              Available saved flat/layout/PP OCR input files
 │       └── source_image.*            Only with --image-root
 ├── previous_statistical_analysis/    Existing results and figures if present
 └── provenance/
