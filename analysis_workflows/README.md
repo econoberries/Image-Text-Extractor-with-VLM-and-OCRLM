@@ -44,3 +44,14 @@ Do not commit benchmark images, raw OCR text, references, raw predictions, datas
 ## Scope
 
 The analysis tools and documentation are independent of `src/`, `scripts/finalize_benchmark.py`, and `scripts/bootstrap_kie.py`. No existing source file, scoring code, or model configuration is changed by this folder.
+## Teammate visualizations
+
+Generate six draft PNG figures **only from existing CSVs** (overall accuracy and CIs, dataset breakdown, paired wins/ties/losses, accuracy versus processing time, accuracy versus Torch memory, and token-limit hits):
+
+```bash
+.venv-analysis/bin/python analysis_workflows/create_team_figures.py
+```
+
+This saves `runs/analysis/team_figures/` and refuses to overwrite an existing nonempty folder. For a rerun, use `--output-dir runs/analysis/team_figures_v2`. All figures use the existing `kie_scores_0to1/` and `hypotheses_400/` outputs. No score or bootstrap is recalculated.
+
+A privately shared teammate package should contain derived figures, summary tables, and the qualitative case summary; do **not** upload the source benchmark images or raw predictions to a public repository.
