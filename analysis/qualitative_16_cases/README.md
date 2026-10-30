@@ -42,6 +42,10 @@ Ties are resolved by sorting OCRBench IDs as strings, then by original input pos
 
 The full seven-model scores, unique `document_key`, and source `image_path` for every selected case are in the **generated archive's** `tables/qualitative_16_cases_selection.csv`. The 16 case directories contain the full seven-model predictions and original answer keys, not just these rounded values.
 
+## Overall result versus selected-case patterns
+
+Across **all 400 matched questions**, spatial OCR–LM scores **0.7755** versus **0.7678** for Qwen3.5 with flat OCR. The paired mean advantage of spatial text is **+0.00768**, with an approximate **95% paired bootstrap CI of [−0.00562, +0.02083]**, obtained by reversing the sign of the saved flat-minus-spatial interval. This interval includes zero. Therefore, the large differences deliberately highlighted in some of the 16 cases **must not be interpreted as an overall statistically resolved improvement**.
+
 ## Text-based illustrations (not yet checked against source images)
 
 - **Case 05, POIE ID 917:** Flat OCR swaps several per-100g and per-serving nutrition values (official score **0.091**). Spatial reconstructs several correct associations (score **0.727**), though it still misassigns some fields. Coordinate JSON scores **0.818**.
