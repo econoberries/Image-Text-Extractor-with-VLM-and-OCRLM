@@ -20,6 +20,8 @@ Every setup answers the **original, unchanged** OCRBench question. No model is t
 
 The **main comparison** is `qwen35_vlm` vs. `qwen35_ocr`: same model, different input. The other setups change the model or the kind of OCR input.
 
+**Optional seventh comparison:** Spatial OCR–LM (`qwen35_spatial_ocr`) is kept separate from the original six-model benchmark. See the [spatial experiment instructions](https://github.com/econoberries/Image-Text-Extractor-with-VLM-and-OCRLM/blob/experiment/spatial-ocr-lm/experiments/README.md) to reuse the saved OCR caches, produce its official scores, and compare them with the six scored models on the same 400 questions.
+
 ## Dataset and evaluation
 
 - **Data:** OCRBench v2, task `key information extraction en`: 400 questions (FUNSD 48, POIE 177, Receipt 25, SROIE 150). The dataset is **not included** in this repository; download it from [OCRBench v2](https://github.com/Yuliang-Liu/MultimodalOCR/blob/main/OCRBench_v2/README.md).
