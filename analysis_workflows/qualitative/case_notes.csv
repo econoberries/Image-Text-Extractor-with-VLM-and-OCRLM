@@ -1,0 +1,17 @@
+dataset,id,selection_group,mechanism,evidence_note
+FUNSD,1212,Plain_better_than_LaOCR,Malformed generated JSON,LaOCR returns an extra quote in the CLIENT NO. key; official score 0; plain OCR has valid JSON.
+FUNSD,1276,LaOCR_better,Field association improved,LaOCR better identifies the sender and associated fax/voice numbers; plain OCR uses other organization or contact details.
+POIE,1006,LaOCR_better,Per-column association improved,"LaOCR picks correct per-100g fat, carbohydrate and protein; plain OCR uses neighboring per-serving values; LaOCR energy formatting still mismatches."
+POIE,1088,Plain_better_than_LaOCR,Output truncation and unnecessary recalculation,"LaOCR generates a step-by-step calculation rather than JSON, hits token limit, score 0."
+POIE,1089,PP_better,Field association improved by reconstructed/reordered text,PP-Structure successfully pairs per-serving and per-100ml values; plain OCR shifts fat/protein/carbohydrate values.
+POIE,1098,Plain_better_than_PP,Wrong value-to-heading association,"PP-Structure prediction chooses 0.3g fat instead of 7.5g, and assigns 11%/15% to wrong reference percentages."
+POIE,1166,Plain_better_than_PP,Corrupted table structure and wrong associations,PP-Structure collapsed table cells; model swaps energy reference bases and misassigns many nutrient values.
+POIE,1206,Plain_better_than_PP,Missing/null output fields,PP-Structure model explicitly returns null for 13 of 17 requested keys despite zero values appearing in recovered OCR; plain OCR outputs mostly complete values.
+POIE,1256,Plain_better_than_LaOCR,Output truncation,"LaOCR generates long prose about two serving columns, hits token limit, never returns valid JSON; plain OCR is correct."
+POIE,1297,Plain_better_than_PP,Systematic reversal of nutrition-table columns,PP-Structure model reverses all ten per-100g vs per-serving nutrient values; collapsed HTML table plus appended reordered OCR lines creates ambiguity.
+POIE,907,PP_better,Output truncation vs useful table recovery,LaOCR produces long prose and hits token limit with no dictionary. PP-Structure recovers most nutrients but misstates serving size and sodium.
+POIE,917,LaOCR_better,Field association improved,LaOCR restores many per-100g vs per-serving assignments; plain OCR reverses columns; PP-Structure retains values in one-cell table rows.
+SROIE,1041,Plain_better_than_LaOCR,Wrong total and punctuation-sensitive address,LaOCR predicts cash tendered 20.00 as total rather than receipt total 7.35; address punctuation also fails exact match.
+SROIE,1199,PP_better,Different OCR-recognized date and exact-match address,"Plain OCR recognizes 08/03/18, while PP-Structure main text contains 06/03/18 matching reference. Plain also has address character/punctuation mismatch."
+SROIE,1296,LaOCR_better,Different OCR-recognized date and exact-match address,"Plain OCR recognizes 08/03/18, while PP-Structure main text contains 06/03/18 matching reference; LaOCR removes punctuation in address."
+SROIE,999,PP_better,Exact-match formatting,"PP-Structure returns date without time and total without RM, matching reference; plain OCR adds time/currency and longer address."
