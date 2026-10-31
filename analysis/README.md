@@ -13,4 +13,4 @@ The generated files are written to `runs/analysis/<BATCH_ID>/`, which is exclude
 
 For the bootstrap method, assumptions, and complete setup instructions, use **Sections 9–11 of the root README**.
 
-The experiments folder contain the scripts for an extension analysis for calculating additional accuracy metrics. Exact-match rate (EMR) is the sum of all benchmark items where all requested key value pairs were correctly returned. Requested field accuracy (RFA) is the proportion of questions for which all requested pairs were extracted correctly.
+The experiments folder contain the scripts for an extension analysis that aggregates the data for different model runs and then reruns a new function that returns true positives, false positives, false negatives, a count of omitted values, and a count of correct keys/wrong values for a benchmark item. These were for calculating additional accuracy metrics: exact-match rate (EMR) is the sum of all benchmark items where all requested key value pairs were correctly returned, requested field accuracy (RFA) is the proportion of questions for which all requested pairs were extracted correctly.
