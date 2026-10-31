@@ -13,4 +13,21 @@ The generated files are written to `runs/analysis/<BATCH_ID>/`, which is exclude
 
 For the bootstrap method, assumptions, and complete setup instructions, use **Sections 9–11 of the root README**.
 
-The experiments folder contain the scripts for an extension analysis that aggregates the data for different model runs and then reruns a new function that returns true positives, false positives, false negatives, a count of omitted values, and a count of correct keys/wrong values for a benchmark item. These were for calculating additional accuracy metrics: exact-match rate (EMR) is the sum of all benchmark items where all requested key value pairs were correctly returned, requested field accuracy (RFA) is the proportion of questions for which all requested pairs were extracted correctly.
+### Extension Analysis
+
+The `experiments/` folder contains the scripts used for the extension analysis.
+
+- **`aggregate_model_json.py`**: Aggregates the data generated across different model runs.
+
+- **`vis_accuracyvsEff.py`**: Re-runs the evaluation using an updated function that returns the following metrics for each benchmark item:
+  - True positives (TP)
+  - False positives (FP)
+  - False negatives (FN)
+  - Number of omitted values
+  - Number of correctly extracted keys with incorrect values
+
+  These additional outputs are used to calculate two accuracy metrics:
+  - **Exact-Match Rate (EMR):** The proportion of benchmark items for which all requested key-value pairs were returned correctly.
+  - **Requested Field Accuracy (RFA):** The proportion of questions for which all requested key-value pairs were extracted correctly.
+
+- **`visualize_processtimes.py`**: Generates the figure illustrating the accuracy–efficiency trade-off.
