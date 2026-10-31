@@ -5,7 +5,7 @@
 Is it better to give a document image directly to a vision-language model (VLM), or to first extract the text with OCR and then ask a language model (LM) the same question? We run both approaches on the same 400 documents and compare extraction accuracy, processing time and compute requirements.
 
 
-## Model configurations (six main setups + one follow-up)
+## Model configurations (seven setups)
 
 Every setup answers the **original, unchanged** OCRBench question. No model is trained or fine-tuned; checkpoints are pinned in `src/ulm_extractor/config.py`.
 
